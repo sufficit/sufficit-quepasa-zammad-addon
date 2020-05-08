@@ -23,3 +23,6 @@ init:
 	mkdir -p "src/db/addon/$${NAME}"; \
 	sed -i "s/NAME/$${NAME}/" base.szpm.template; \
 	mv base.szpm.template "$${NAME}.szpm.template"
+
+test:
+	@echo "there are no tests yet"
