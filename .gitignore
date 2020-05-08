@@ -1,0 +1,10 @@
+node_modules/
+npm-debug.log*
+.idea/
+dist/
+*.szpm
+.env*
+yarn-error.log
+docker-compose.yml
+coverage
+.pgpass

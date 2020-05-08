@@ -1,0 +1,24 @@
+{
+  "name": "QuePasa",
+  "version": "0.0.1",
+  "vendor": "Center for Digital Resilience",
+  "license": "AGPL-v3+",
+  "url": "https://gitlab.com/digiresilience/link/zammad-addon-quepasa",
+  "buildhost": "",
+  "builddate": "",
+  "change_log": [
+    {
+      "version": "0.0.1",
+      "date": "",
+      "log": "Initial version."
+    }
+  ],
+  "description": [
+    {
+      "language": "en",
+      "text": "Change me"
+    }
+  ],
+  "files": [
+  ]
+}

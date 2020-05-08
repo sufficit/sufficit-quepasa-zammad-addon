@@ -1,0 +1,36 @@
+---
+image: registry.gitlab.com/guardianproject-ops/docker-python-node:python3.8-nodejs12
+
+stages:
+  - test
+  - build
+  - trigger
+
+before_script:
+  - apt-get update && apt-get install -y make ruby
+  - gem install rufo
+  - pip install inflection
+
+test:
+  stage: test
+  script:
+    - make test
+
+build:
+  stage: build
+  artifacts:
+    paths:
+      - dist/*.szpm
+  script:
+    - make
+
+trigger-downstream:
+  stage: trigger
+  only:
+    - develop
+    - master
+  variables:
+    UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME
+  trigger:
+    project: digiresilience/link/docker-zammad
+    branch: $CI_COMMIT_REF_NAME
