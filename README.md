@@ -21,20 +21,24 @@ installed and working to use this addon.
 
 5. Repeat
 
-
 ### Create a new migration
 
 Included is a helper script to create new migrations. You must have the python
 `inflection` library installed.
 
-* debian/ubuntu:  `apt install python3-inflection`
-* pip: `pip install --user inflection`
-* or create your own venv
+- debian/ubuntu: `apt install python3-inflection`
+- pip: `pip install --user inflection`
+- or create your own venv
 
 To make a new migration simply run:
+
 ```
 make new-migration
 ```
+
+## Help and Support
+
+Join us in our public matrix channel [#cdr-link-dev-support:matrix.org](https://matrix.to/#/#cdr-link-dev-support:matrix.org?via=matrix.org&via=neo.keanu.im).
 
 ## License
 
@@ -44,6 +48,5 @@ This is a free software project licensed under the GNU Affero General
 Public License v3.0 (GNU AGPLv3) by [The Center for Digital
 Resilience](https://digiresilience.org) and [Guardian
 Project](https://guardianproject.info).
-
 
 🤠
