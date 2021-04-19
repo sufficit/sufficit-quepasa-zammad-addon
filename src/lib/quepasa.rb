@@ -178,6 +178,7 @@ returns the latest last_seen_ts
         to: {
           number:     channel.options['bot']['number']
         },
+        replyto: message_raw['replyto'],
         timestamp:  timestamp,
         created_at: created_at,
         id:         message_raw['id'],
@@ -238,7 +239,7 @@ returns the latest last_seen_ts
         firstname: from_name,
         login:  from_number,
         mobile:    from_number,
-        note:      "QuePasa #{from_number}",
+        note:      "WhatsApp UniqueID: #{message[:replyto]}",
         active:    true,
         role_ids:  Role.signup_role_ids
       )

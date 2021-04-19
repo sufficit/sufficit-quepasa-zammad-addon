@@ -1,3 +1,4 @@
+# Encaminha de volta as mensagens para o whatsapp
 class Observer::Ticket::Article::CommunicateQuepasa < ActiveRecord::Observer
   observe 'ticket::_article'
 
