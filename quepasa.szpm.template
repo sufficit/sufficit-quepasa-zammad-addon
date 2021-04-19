@@ -1,6 +1,6 @@
 {
-  "name": "QuePasa",
-  "version": "0.0.1",
+  "name": "quepasa",
+  "version": "0.0.6",
   "vendor": "Center for Digital Resilience",
   "license": "AGPL-v3+",
   "url": "https://gitlab.com/digiresilience/link/zammad-addon-quepasa",
@@ -8,15 +8,15 @@
   "builddate": "",
   "change_log": [
     {
-      "version": "0.0.1",
+      "version": "0.0.3",
       "date": "",
       "log": "Initial version."
     }
   ],
   "description": [
     {
-      "language": "en",
-      "text": "Change me"
+      "language": "pt-br",
+      "text": "WhatsApp Channel"
     }
   ],
   "files": [

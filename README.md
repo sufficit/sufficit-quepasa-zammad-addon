@@ -50,3 +50,6 @@ Resilience](https://digiresilience.org) and [Guardian
 Project](https://guardianproject.info).
 
 🤠
+
+
+zammad run rake assets:precompile

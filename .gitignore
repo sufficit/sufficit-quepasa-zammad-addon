@@ -8,3 +8,4 @@ yarn-error.log
 docker-compose.yml
 coverage
 .pgpass
+.vscode
