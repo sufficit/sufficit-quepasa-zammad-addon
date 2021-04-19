@@ -1,7 +1,7 @@
 {
   "name": "quepasa",
-  "version": "0.0.6",
-  "vendor": "Center for Digital Resilience",
+  "version": "0.0.7",
+  "vendor": "Sufficit Soluções em Tecnologia da Informação",
   "license": "AGPL-v3+",
   "url": "https://gitlab.com/digiresilience/link/zammad-addon-quepasa",
   "buildhost": "",
