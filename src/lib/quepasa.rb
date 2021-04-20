@@ -161,7 +161,7 @@ returns the latest last_seen_ts
     older_import_max = 40
     new_last_seen_date = Quepasa.timestamp_to_date(last_seen_ts)
     new_last_seen_ts = last_seen_ts
-    self_source_id = self.number_to_whatsapp_user(channel.options['bot']['number'])
+    self_source_id = channel.options['bot']['number']
     count = 0
     @api.fetch(last_seen_ts).each do |message_raw|
       Rails.logger.debug { "quepasa processing message self_source_id=#{self_source_id} and source=#{message_raw['source']}" }
@@ -172,7 +172,7 @@ returns the latest last_seen_ts
       created_at = Quepasa.timestamp_to_date(timestamp)
       message = {
         from: {
-          number:     self.whatsapp_user_to_number(message_raw['source']),
+          number:     message_raw['source'],
           name:       message_raw['name'],
         },
         to: {
@@ -391,10 +391,10 @@ returns the latest last_seen_ts
   end
 
   def from_article(article)
-    r = @api.send_message(number_to_whatsapp_user(article[:to]), article[:body])
+    r = @api.send_message(article[:to], article[:body])
     if r['result'].present? and r['result']['source'].present?
-      r['result']['source'] = self.whatsapp_user_to_number(r['result']['source'])
-      r['result']['recipient'] = self.whatsapp_user_to_number(r['result']['recipient'])
+      r['result']['source'] = r['result']['source']
+      r['result']['recipient'] = r['result']['recipient']
     end
     r
   end
