@@ -223,11 +223,11 @@ returns the latest last_seen_ts
     Rails.logger.debug { 'Create user from message...' }
     Rails.logger.debug { message.inspect }
 
-    from_number = message[:from][:number]
-    from_name = message[:from][:name]
+    #from_number = message[:from][:number]
+    #from_name = message[:from][:name]
 
     # create or update user
-    auth = Authorization.find_by(uid: from_number, provider: 'quepasa')
+    auth = Authorization.find_by(uid: message[:replyto], provider: 'quepasa')
 
     user = if auth
              User.find(auth.user_id)
@@ -236,11 +236,8 @@ returns the latest last_seen_ts
            end
     unless user
       user = User.create!(
-        firstname: from_name,
-        login:  from_number,
-        mobile:    from_number,
+        login:  message[:replyto],
         whatsapp: message[:replyto],
-        note:      "QuePasa #{from_number}",
         active:    true,
         role_ids:  Role.signup_role_ids
       )
@@ -248,8 +245,8 @@ returns the latest last_seen_ts
 
     # create or update authorization
     auth_data = {
-      uid:      from_number,
-      username: from_number,
+      uid:      message[:replyto],
+      username: message[:replyto],
       user_id:  user.id,
       provider: 'quepasa'
     }
