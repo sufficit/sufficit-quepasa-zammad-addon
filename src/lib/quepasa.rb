@@ -239,7 +239,7 @@ returns the latest last_seen_ts
         firstname: from_name,
         login:  from_number,
         mobile:    from_number,
-        note:      "WhatsApp UniqueID: #{message[:replyto]}",
+        whatsapp_uniqueid: message[:replyto],
         active:    true,
         role_ids:  Role.signup_role_ids
       )
