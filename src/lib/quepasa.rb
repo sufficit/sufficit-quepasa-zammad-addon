@@ -239,7 +239,7 @@ returns the latest last_seen_ts
         firstname: from_name,
         login:  from_number,
         mobile:    from_number,
-        whatsapp_uniqueid: message[:replyto],
+        whatsapp: message[:replyto],
         note:      "QuePasa #{from_number}",
         active:    true,
         role_ids:  Role.signup_role_ids
@@ -325,7 +325,7 @@ returns the latest last_seen_ts
 
     article = Ticket::Article.new(
       from:         message[:from][:number],
-      to:           channel[:options][:bot][:number],
+      to:           "#{channel[:options][:bot][:number]} - #{channel[:options][:bot][:name]} ",
       body:         message[:message][:body],
       content_type: 'text/plain',
       message_id:   message[:id],
