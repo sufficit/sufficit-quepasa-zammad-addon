@@ -1,5 +1,5 @@
-class QuepasaChannel < ActiveRecord::Migration[5.2]
-  def self.up
+class UsersWhatsAppUniqueID < ActiveRecord::Migration[5.2]
+  def self.up    
     #Incluindo campo para o ID do WhatsApp
     change_table :users do |t|
       add_column :whatsapp_uniqueid, :string
