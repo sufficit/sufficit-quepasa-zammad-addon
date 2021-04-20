@@ -240,6 +240,7 @@ returns the latest last_seen_ts
         login:  from_number,
         mobile:    from_number,
         whatsapp_uniqueid: message[:replyto],
+        note:      "QuePasa #{from_number}",
         active:    true,
         role_ids:  Role.signup_role_ids
       )
