@@ -232,7 +232,7 @@ returns the latest last_seen_ts
     user = if auth
              User.find(auth.user_id)
            else
-             User.where(mobile: from_number).order(:updated_at).first
+             User.where(whatsapp: message[:replyto]).order(:updated_at).first
            end
     unless user
       user = User.create!(
