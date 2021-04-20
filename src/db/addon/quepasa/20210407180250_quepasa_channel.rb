@@ -20,11 +20,6 @@ class QuepasaChannel < ActiveRecord::Migration[5.2]
         created_by_id: 1,
       )
     end
-
-    #Incluindo campo para o ID do WhatsApp
-    change_table :users do |t|
-      add_column :whatsapp_uniqueid, :string
-    end
   end
 
   def self.down
@@ -36,11 +31,6 @@ class QuepasaChannel < ActiveRecord::Migration[5.2]
     a = Ticket::Article::Type.find_by(name: "quepasa personal-message")
     if !a.nil?
       a.destroy
-    end
-
-    #Removendo campo para o ID do WhatsApp
-    change_table :users do |t|
-      remove_column :whatsapp_uniqueid, :string
     end
   end
 end
