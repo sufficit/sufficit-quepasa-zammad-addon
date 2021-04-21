@@ -172,7 +172,7 @@ returns the latest last_seen_ts
       created_at = Quepasa.timestamp_to_date(timestamp)
       message = {
         from: {
-          number:     message_raw['source'],
+          number:     message_raw['source'], # pessoa que enviou a msg
           name:       message_raw['name'],
         },
         to: {
@@ -223,8 +223,8 @@ returns the latest last_seen_ts
     Rails.logger.debug { 'Create user from message...' }
     Rails.logger.debug { message.inspect }
 
-    #from_number = message[:from][:number]
-    #from_name = message[:from][:name]
+    # from_number = message[:from][:number]
+    # from_name = message[:from][:name]
 
     # create or update user
     auth = Authorization.find_by(uid: message[:replyto], provider: 'quepasa')
@@ -235,7 +235,13 @@ returns the latest last_seen_ts
              User.where(whatsapp: message[:replyto]).order(:updated_at).first
            end
     unless user
+      # colocar o telefone do cliente se não houver nome no contato
+      newTitle = message[:from][:name]
+      newTitle = message[:from][:number] if newTitle.nil? || newTitle.empty?
+
       user = User.create!(
+        firstname: newTitle,
+        lastname: " (WHATSAPP)",
         login:  message[:replyto],
         whatsapp: message[:replyto],
         active:    true,
