@@ -223,9 +223,6 @@ returns the latest last_seen_ts
     Rails.logger.debug { 'Create user from message...' }
     Rails.logger.debug { message.inspect }
 
-    # from_number = message[:from][:number]
-    # from_name = message[:from][:name]
-
     # create or update user
     auth = Authorization.find_by(uid: message[:replyto], provider: 'quepasa')
 
@@ -239,8 +236,15 @@ returns the latest last_seen_ts
       newTitle = message[:from][:name]
       newTitle = message[:from][:number] if newTitle.nil? || newTitle.empty?
 
+      # Tendando definir telefone
+      # Somente se for uma msg direto e não de grupo
+      newPhone = if message[:replyto].end_with?("@s.whatsapp.net") 
+        message[:from][:number]
+      end
+
       user = User.create!(
         firstname: newTitle,
+        phone: newPhone,
         lastname: " (WHATSAPP)",
         login:  message[:replyto],
         whatsapp: message[:replyto],
@@ -309,7 +313,7 @@ returns the latest last_seen_ts
         channel_id: channel.id,
         quepasa:  {
           bot_id:  channel.options[:bot][:id],
-          chat_id: message[:from][:number]
+          chat_id: message[:replyto]
         }
       }
     )
@@ -340,7 +344,7 @@ returns the latest last_seen_ts
         quepasa: {
           timestamp:  message[:timestamp],
           message_id: message[:id],
-          from:       message[:from][:number],
+          from:       message[:replyto],
         }
       }
     )
