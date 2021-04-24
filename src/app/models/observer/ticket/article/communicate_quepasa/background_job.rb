@@ -42,7 +42,10 @@ class Observer::Ticket::Article::CommunicateQuepasa::BackgroundJob
       log_error(article, 'Delivering Quepasa message failed!')
       return
     end
-
+    
+    # ainda não descobri como isso é utilizado e exibido
+    Rails.logger.info { "SUFF: send result: #{result}" }
+    
     article.to = result['result']['recipient']
     article.from = result['result']['source']
     message_id = result['result']['messageId']

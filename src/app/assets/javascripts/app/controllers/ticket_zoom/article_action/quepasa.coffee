@@ -55,7 +55,7 @@ class QuepasaReply
       icon:              'quepasa'
       attributes:        []
       internal:          false,
-      features:          []
+      features:          ['attachment']
       maxTextLength:     10000
       warningTextLength: 5000
     }

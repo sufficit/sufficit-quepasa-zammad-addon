@@ -178,21 +178,21 @@ returns the latest last_seen_ts
         created_at: created_at,             # no formato de data
 
         # whatsapp controlador das msgs (bot)
-        controller:{
+        controller: {
           id: message_raw['controller']['id'],
           title: message_raw['controller']['title'],
           phone: message_raw['controller']['phone']
         },  
 
         # endereço garantido que deve receber uma resposta
-        replyto:{
+        replyto: {
           id: message_raw['replyto']['id'],
           title: message_raw['replyto']['title'],
           phone: message_raw['replyto']['phone']
         }, 
 
         # se a msg foi postado em algum grupo ? quem postou !
-        participant:{
+        participant: {
           id: message_raw['participant']['id'],
           title: message_raw['participant']['title'],
           phone: message_raw['participant']['phone']
@@ -290,14 +290,14 @@ returns the latest last_seen_ts
     Rails.logger.debug { message.inspect }
 
     # definindo o que utilizar como endpoint de usuario
-    if message[:participant] 
+    if !(message[:participant][:id].to_s.empty?)
       endPointID = message[:participant][:id]
       endPointTitle = message[:participant][:title]
-      endPointPhone =message[:participant][:phone]
+      endPointPhone = message[:participant][:phone]
     else
       endPointID = message[:replyto][:id]
       endPointTitle = message[:replyto][:title]
-      endPointPhone =message[:replyto][:phone]
+      endPointPhone = message[:replyto][:phone]
     end
 
     # create or update users  
@@ -457,11 +457,13 @@ returns the latest last_seen_ts
   end
 
   # usado ao enviar msg apartir de um artigo, respondendo um artigo
-  def from_article(article)
+  def from_article(article)    
     r = @api.send_message(article[:to], article[:body])
-    if r['result'].present? and r['result']['controller'].present?
-      r['result']['controller'] = r['result']['controller']
-      r['result']['replyto'] = r['result']['replyto']
+
+    Rails.logger.info { "SUFF: from article: #{article} :: #{r}" }
+    if r['result'].present? and r['result']['source'].present?
+      r['result']['source'] = r['result']['source']
+      r['result']['recipient'] = r['result']['recipient']
     end
     r
   end
