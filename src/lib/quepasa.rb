@@ -164,27 +164,42 @@ returns the latest last_seen_ts
     self_source_id = channel.options['bot']['number']
     count = 0
     @api.fetch(last_seen_ts).each do |message_raw|
-      Rails.logger.debug { "quepasa processing message self_source_id=#{self_source_id} and source=#{message_raw['source']}" }
       Rails.logger.debug { message_raw.inspect }
-      next if message_raw['source'] == self_source_id
+
+      # caso tenho sido eu mesmo quem enviou a msg, não precisa processar pois o artigo já foi criado
+      next if ActiveModel::Type::Boolean.new.cast(message_raw['fromme'])            
+      
       count += 1
       timestamp = message_raw['timestamp']
       created_at = Quepasa.timestamp_to_date(timestamp)
       message = {
-        from: {
-          number:     message_raw['source'], # pessoa que enviou a msg
-          name:       message_raw['name'],
+        id:         message_raw['id'],      # vindo direto do whatsapp
+        timestamp:  timestamp,              # double unix timestamp
+        created_at: created_at,             # no formato de data
+
+        # whatsapp controlador das msgs (bot)
+        controller:{
+          id: message_raw['controller']['id'],
+          title: message_raw['controller']['title'],
+          phone: message_raw['controller']['phone']
+        },  
+
+        # endereço garantido que deve receber uma resposta
+        replyto:{
+          id: message_raw['replyto']['id'],
+          title: message_raw['replyto']['title'],
+          phone: message_raw['replyto']['phone']
+        }, 
+
+        # se a msg foi postado em algum grupo ? quem postou !
+        participant:{
+          id: message_raw['participant']['id'],
+          title: message_raw['participant']['title'],
+          phone: message_raw['participant']['phone']
         },
-        to: {
-          number:     channel.options['bot']['number']
-        },
-        replyto: message_raw['replyto'],
-        timestamp:  timestamp,
-        created_at: created_at,
-        id:         message_raw['id'],
-        message:    {
-          body:       message_raw['body'],
-        }
+        
+        type:  message_raw['type'],
+        body:  message_raw['body']
       }
 
       #Rails.logger.debug{"channel.created_at#{channel.created_at} > message[:created_at]#{message[:created_at]} "}
@@ -219,44 +234,100 @@ returns the latest last_seen_ts
     @api.send_message(recipient, message)
   end
 
-  def to_user(message)
-    Rails.logger.debug { 'Create user from message...' }
+  def to_wagroup(message)
+    Rails.logger.debug { 'Create user/whatsapp group from group message...' }
+
+    # Somente se for uma msg de grupo
+    if message[:replyto][:id].end_with?("@g.us")   
+
+      # definindo o que utilizar como endpoint de usuario
+      endPointID = message[:replyto][:id]
+      endPointTitle = message[:replyto][:title]
+      endPointPhone =message[:replyto][:phone]
+
+      # create or update users  
+      auth = Authorization.find_by(uid: endPointID, provider: 'quepasa')
+      user = if auth
+              User.find(auth.user_id)
+            else
+              User.where(whatsapp: endPointID).order(:updated_at).first
+            end
+      unless user
+        Rails.logger.info { "SUFF: Create user from group message... #{endPointID}" }
+        user = User.create!(
+          login:  endPointID,
+          whatsapp: endPointID,
+          active:    true,
+          role_ids:  Role.signup_role_ids
+        )
+      end
+
+      # atualizando nome de usuario se possível
+      user.firstname = endPointTitle || user.firstname || "unknown"
+      user.lastname = " (WHATSAPP GROUP)"
+      user.save!
+
+      # create or update authorization
+      auth_data = {
+        uid:      endPointID,
+        username: endPointID,
+        user_id:  user.id,
+        provider: 'quepasa'
+      }
+      if auth
+        auth.update!(auth_data)
+      else
+        Authorization.create(auth_data)
+      end
+
+    end
+
+    user
+  end
+
+  def to_wauser(message)        
+    Rails.logger.debug { "Create user from message ..." }
     Rails.logger.debug { message.inspect }
 
-    # create or update user
-    auth = Authorization.find_by(uid: message[:replyto], provider: 'quepasa')
+    # definindo o que utilizar como endpoint de usuario
+    if message[:participant] 
+      endPointID = message[:participant][:id]
+      endPointTitle = message[:participant][:title]
+      endPointPhone =message[:participant][:phone]
+    else
+      endPointID = message[:replyto][:id]
+      endPointTitle = message[:replyto][:title]
+      endPointPhone =message[:replyto][:phone]
+    end
 
+    # create or update users  
+    auth = Authorization.find_by(uid: endPointID, provider: 'quepasa')
     user = if auth
              User.find(auth.user_id)
            else
-             User.where(whatsapp: message[:replyto]).order(:updated_at).first
+             User.where(whatsapp: endPointID).order(:updated_at).first
            end
     unless user
-      # colocar o telefone do cliente se não houver nome no contato
-      newTitle = message[:from][:name]
-      newTitle = message[:from][:number] if newTitle.nil? || newTitle.empty?
-
-      # Tendando definir telefone
-      # Somente se for uma msg direto e não de grupo
-      newPhone = if message[:replyto].end_with?("@s.whatsapp.net") 
-        message[:from][:number]
-      end
+      Rails.logger.info { "SUFF: Create user from message... #{endPointID}" }
 
       user = User.create!(
-        firstname: newTitle,
-        phone: newPhone,
-        lastname: " (WHATSAPP)",
-        login:  message[:replyto],
-        whatsapp: message[:replyto],
+        phone: endPointPhone,
+        login:  endPointID,
+        whatsapp: endPointID,
         active:    true,
         role_ids:  Role.signup_role_ids
       )
     end
+    
+    # atualizando nome de usuario se possível
+    user.firstname = endPointTitle || endPointPhone || user.firstname || "unknown"
+    user.lastname = " (WHATSAPP)"
+    user.save!
 
     # create or update authorization
     auth_data = {
-      uid:      message[:replyto],
-      username: message[:replyto],
+      uid:      endPointID,
+      username: endPointID,
       user_id:  user.id,
       provider: 'quepasa'
     }
@@ -279,8 +350,8 @@ returns the latest last_seen_ts
 
     # prepare title
     title = '-'
-    unless message[:message][:body].nil?
-      title = message[:message][:body]
+    unless message[:body].nil?
+      title = message[:body]
     end
     if title.length > 60
       title = "#{title[0, 60]}..."
@@ -313,7 +384,7 @@ returns the latest last_seen_ts
         channel_id: channel.id,
         quepasa:  {
           bot_id:  channel.options[:bot][:id],
-          chat_id: message[:replyto]
+          chat_id: message[:replyto][:id]
         }
       }
     )
@@ -331,10 +402,10 @@ returns the latest last_seen_ts
     UserInfo.current_user_id = user.id
 
     article = Ticket::Article.new(
-      from:         message[:from][:number],
-      to:           "#{channel[:options][:bot][:number]} - #{channel[:options][:bot][:name]} ",
-      body:         message[:message][:body],
-      content_type: 'text/plain',
+      from:         "#{user[:firstname]}#{user[:lastname]}",
+      to:           "#{channel[:options][:bot][:number]} - #{channel[:options][:bot][:name]}",
+      body:         message[:body],
+      content_type: message[:type] || 'text/plain',
       message_id:   message[:id],
       ticket_id:    ticket.id,
       type_id:      Ticket::Article::Type.find_by(name: 'quepasa personal-message').id,
@@ -344,7 +415,7 @@ returns the latest last_seen_ts
         quepasa: {
           timestamp:  message[:timestamp],
           message_id: message[:id],
-          from:       message[:replyto],
+          from:       message[:replyto][:id],
         }
       }
     )
@@ -353,7 +424,7 @@ returns the latest last_seen_ts
     # TODO voice
     # TODO emojis
     #
-    if message[:message][:body]
+    if message[:body]
       Rails.logger.debug { article.inspect }
       article.save!
       return article
@@ -365,20 +436,37 @@ returns the latest last_seen_ts
     # begin import
     Rails.logger.debug { 'quepasa import message' }
 
-    # TODO: handle messages in group chats
-
+    # Retorna por aqui caso a msg já tenha sido processada em algum artigo
     return if Ticket::Article.find_by(message_id: message[:id])
 
+    # define o ticket como nulo para comerçarmos o processo
     ticket = nil
-    # use transaction
+
+    # cria um transação para garantir que todo o processo seja coerente no final
+    # se não conhece database transactions, pare por aqui e vai estudar
     Transaction.execute(reset_user_id: true) do
-      user = to_user(message)
-      ticket = to_ticket(message, user, group_id, channel)
-      to_article(message, user, ticket, channel)
+      wagroup = to_wagroup(message)   # cria um usuario caso a msg venha de algum grupo
+      wauser  = to_wauser(message)    # cria outro usuario caso seja uma msg direta ou para o participante do grupo      
+      
+      wagroup = wauser if wagroup.nil?
+      ticket = to_ticket(message, wagroup, group_id, channel)
+      to_article(message, wauser, ticket, channel)
     end
 
     ticket
   end
+
+  # usado ao enviar msg apartir de um artigo, respondendo um artigo
+  def from_article(article)
+    r = @api.send_message(article[:to], article[:body])
+    if r['result'].present? and r['result']['controller'].present?
+      r['result']['controller'] = r['result']['controller']
+      r['result']['replyto'] = r['result']['replyto']
+    end
+    r
+  end
+
+=begin coisa ainda não utlizada
 
   def number_to_whatsapp_user(number)
     suffix = "@s.whatsapp.net"
@@ -394,20 +482,13 @@ returns the latest last_seen_ts
 
   def whatsapp_user_to_number(whatsapp_user)
     i = whatsapp_user.index("@") - 1
-    whatsapp_user[0..i]
+    whatsapp_user[0..i].delete_prefix("+")
   end
 
-  def from_article(article)
-    r = @api.send_message(article[:to], article[:body])
-    if r['result'].present? and r['result']['source'].present?
-      r['result']['source'] = r['result']['source']
-      r['result']['recipient'] = r['result']['recipient']
-    end
-    r
-  end
 
   def download_file(file_id)
     # TODO: attachments
   end
+=end
 
 end

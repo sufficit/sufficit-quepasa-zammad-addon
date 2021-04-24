@@ -45,7 +45,7 @@ def pkg_files():
         for f in files:
             if any(re.search(r, f) for r in ignored_patterns):
                 continue
-            actual_path = os.path.join(root, f)
+            actual_path = os.path.join(root, f).replace("\\", "/")
             pkged_files.append(pkg_file(actual_path))
     return pkged_files
 
