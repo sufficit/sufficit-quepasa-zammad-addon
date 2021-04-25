@@ -1,4 +1,5 @@
 require 'quepasa_api'
+require 'rack/mime'
 
 class Quepasa
 
@@ -29,6 +30,23 @@ returns
 
 =end
 
+  def self.set_webhook(token, callback_url)
+    if callback_url.match?(%r{^http://}i)
+      raise Exceptions::UnprocessableEntity, 'webhook url need to start with https://, you use http://'
+    end
+
+    ### 
+    ##  Nesse ponto avisa ao QuePasa para retornar nessa URL
+    ###
+    #api = TelegramAPI.new(token)
+    #begin
+    #  api.setWebhook(callback_url)
+    #rescue
+    #  raise Exceptions::UnprocessableEntity, 'Unable to set webhook at Telegram, seems to be a invalid url.'
+    #end
+    true
+  end
+
   def self.create_or_update_channel(api_url, token, params, channel = nil)
 
     # verify token
@@ -49,6 +67,17 @@ returns
       raise 'Group invalid!'
     end
 
+    # generate random callback token
+    callback_token = if Rails.env.test?
+      'callback_token'
+    else
+      SecureRandom.urlsafe_base64(10)
+    end
+
+    # set webhook / callback url for this bot @ Quepasa
+    callback_url = "#{Setting.get('http_type')}://#{Setting.get('fqdn')}/api/v1/channels_quepasa_webhook/#{callback_token}?id=#{bot['id']}"
+    Quepasa.set_webhook(token, callback_url)
+
     if !channel
       channel = Quepasa.bot_by_bot_id(bot['id'])
       if !channel
@@ -62,9 +91,12 @@ returns
         id:     bot['id'],
         number: bot['number'],
       },
+      callback_token: callback_token,
+      callback_url:   callback_url,
       api_token: token,
       api_url:   api_url,
       welcome:   params[:welcome],
+      goodbye:   params[:goodbye]
     }
     channel.group_id = group.id
     channel.active = true
@@ -198,8 +230,8 @@ returns the latest last_seen_ts
           phone: message_raw['participant']['phone']
         },
         
-        type:  message_raw['type'],
-        body:  message_raw['body']
+        attachment: message_raw['attachment'],
+        text:  message_raw['text']
       }
 
       #Rails.logger.debug{"channel.created_at#{channel.created_at} > message[:created_at]#{message[:created_at]} "}
@@ -227,6 +259,22 @@ returns the latest last_seen_ts
   client.send_message(chat_id, 'some message')
 
 =end
+
+  # Sufficit padrão para envio de msg
+  def messageSendText(recipient, message, language = 'en')
+    return if Rails.env.test?
+
+    locale = Locale.find_by(alias: language)
+    if !locale
+      locale = Locale.where('locale LIKE :prefix', prefix: "#{language}%").first
+    end
+
+    if locale
+      message = Translation.translate(locale[:locale], message)
+    end
+
+    @api.sendMessage(recipient, message)
+  end
 
   def send_message(recipient, message)
     return if Rails.env.test?
@@ -350,8 +398,8 @@ returns the latest last_seen_ts
 
     # prepare title
     title = '-'
-    unless message[:body].nil?
-      title = message[:body]
+    unless message[:text].nil?
+      title = message[:text]
     end
     if title.length > 60
       title = "#{title[0, 60]}..."
@@ -394,6 +442,9 @@ returns the latest last_seen_ts
 
   def to_article(message, user, ticket, channel)
 
+    Rails.logger.info { 'SUFF: Segue a msg para depuração' }
+    Rails.logger.info { "SUFF: #{message}" }
+
     Rails.logger.debug { 'Create article from message...' }
     Rails.logger.debug { message.inspect }
     Rails.logger.debug { user.inspect }
@@ -402,14 +453,12 @@ returns the latest last_seen_ts
     UserInfo.current_user_id = user.id
 
     article = Ticket::Article.new(
-      from:         "#{user[:firstname]}#{user[:lastname]}",
-      to:           "#{channel[:options][:bot][:number]} - #{channel[:options][:bot][:name]}",
-      body:         message[:body],
-      content_type: message[:type] || 'text/plain',
-      message_id:   message[:id],
       ticket_id:    ticket.id,
       type_id:      Ticket::Article::Type.find_by(name: 'quepasa personal-message').id,
       sender_id:    Ticket::Article::Sender.find_by(name: 'Customer').id,
+      from:         "#{user[:firstname]}#{user[:lastname]}",
+      to:           "#{channel[:options][:bot][:number]} - #{channel[:options][:bot][:name]}",
+      message_id:   message[:id],
       internal:     false,
       preferences:  {
         quepasa: {
@@ -420,16 +469,38 @@ returns the latest last_seen_ts
       }
     )
 
-    # TODO: attachments
-    # TODO voice
-    # TODO emojis
-    #
-    if message[:body]
-      Rails.logger.debug { article.inspect }
-      article.save!
-      return article
+    if !message[:text]
+      raise Exceptions::UnprocessableEntity, 'invalid quepasa message'
+    end    
+
+    Rails.logger.info { 'SUFF: Processando msg de texto simples ... ' } 
+    article.content_type = 'text/plain'      
+    article.body = message[:text]
+    article.save!
+
+    # Processando msg com anexos    
+    attachment = message[:attachment]
+    if !attachment.nil? && !attachment.empty?
+      Rails.logger.info { 'SUFF: Processando attachment ... ' } 
+      Store.remove(
+        object: 'Ticket::Article',
+        o_id:   article.id,
+      )
+
+      document      = get_file(message[:replyto][:id], attachment, 'pt-br')      
+      extension = Rack::Mime::MIME_TYPES.invert[attachment['mime']]
+      Store.add(
+        object:      'Ticket::Article',
+        o_id:        article.id,
+        data:        document,
+        filename:    "#{message[:id]}#{extension}",
+        preferences: {
+          'Mime-Type' => attachment['mime'],
+        },
+      )
     end
-    raise 'invalid action'
+    
+    return article    
   end
 
   def to_group(message, group_id, channel)
@@ -468,29 +539,38 @@ returns the latest last_seen_ts
     r
   end
 
-=begin coisa ainda não utlizada
-
-  def number_to_whatsapp_user(number)
-    suffix = "@s.whatsapp.net"
-    whatsapp_user = number
-    unless number.include?(suffix)
-      whatsapp_user = "#{number}#{suffix}"
+  def get_file(request, attachment, language)
+    Rails.logger.info "SUFF: Geting file : #{attachment}"
+    
+    # quepasa bot files are limited up to 20MB
+    if !validate_file_size(attachment['length'])
+      message_text = 'WhatsApp file is to big. (Maximum 20mb)'
+      messageSendText(request, "Sorry, we could not handle your message. #{message_text}", language)
+      raise Exceptions::UnprocessableEntity, message_text
     end
-    if whatsapp_user.start_with?("+")
-      whatsapp_user = whatsapp_user[1..-1]
+
+    result = @api.getAttachment(attachment) 
+
+    if !validate_download(result)
+      message_text = 'Unable to get you file from bot.'
+      messageSendText(request, "Sorry, we could not handle your message. #{message_text}", language)
+      raise Exceptions::UnprocessableEntity, message_text
     end
-    whatsapp_user
+
+    result
   end
 
-  def whatsapp_user_to_number(whatsapp_user)
-    i = whatsapp_user.index("@") - 1
-    whatsapp_user[0..i].delete_prefix("+")
+  def validate_file_size(length)
+    Rails.logger.info "SUFF: Validating file size : #{length}"
+    return false if length >= 20.megabytes
+
+    true
   end
 
+  def validate_download(result)
+    return false if result.nil?
 
-  def download_file(file_id)
-    # TODO: attachments
+    true
   end
-=end
-
+  
 end

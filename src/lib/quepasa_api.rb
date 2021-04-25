@@ -70,4 +70,11 @@ class QuepasaApi
     messages = results['messages']
     messages
   end
+
+  def getAttachment(attachment)
+    Rails.logger.info { "SUFF: Enviando requisição ... #{attachment.to_json}" } 
+    url = @api + '/bot/' + @token + "/attachment"
+    ret = RestClient.post(url, attachment.to_json, { :content_type => :json, accept: :json })
+    ret
+  end
 end

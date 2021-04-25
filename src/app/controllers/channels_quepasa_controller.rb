@@ -52,4 +52,10 @@ class ChannelsQuepasaController < ApplicationController
     channel.destroy
     render json: {}
   end
+
+  def webhook
+    channel = Channel.find_by(id: params[:id], area: 'Quepasa::Account')
+    Rails.logger.info { "SUFF: webook do quepasa ... :: #{id}" }
+    render json: {}
+  end  
 end
