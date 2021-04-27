@@ -1,5 +1,6 @@
 class ChannelsQuepasaController < ApplicationController
-  prepend_before_action -> { authentication_check(permission: 'admin.channel_quepasa') }
+  prepend_before_action -> { authentication_check(permission: 'admin.channel_quepasa') }, except: [:webhook]
+  skip_before_action :verify_csrf_token, only: [:webhook]
 
   def index
     assets = {}
@@ -53,9 +54,25 @@ class ChannelsQuepasaController < ApplicationController
     render json: {}
   end
 
+  # SUFFICIT webhook para receber as msgs de forma instantânea
   def webhook
-    channel = Channel.find_by(id: params[:id], area: 'Quepasa::Account')
-    Rails.logger.info { "SUFF: webook do quepasa ... :: #{id}" }
-    render json: {}
+    raise Exceptions::UnprocessableEntity, 'bot id is missing' if params['id'].blank?
+
+    channel = Quepasa.bot_by_bot_id(params['id'])
+    raise Exceptions::UnprocessableEntity, 'bot not found' if !channel
+
+    if channel.options[:callback_token] != params['callback_token']
+      raise Exceptions::UnprocessableEntity, 'invalid callback token'
+    end
+
+    quepasa = Quepasa.new(channel.options[:api_url], channel.options[:api_token])
+    begin
+      message = Quepasa.JsonMsgToObject(params['message'])
+      quepasa.to_group(message, channel.group_id, channel)
+    rescue Exceptions::UnprocessableEntity => e
+      Rails.logger.error e.message
+    end
+
+    render json: {}, status: :ok
   end  
 end

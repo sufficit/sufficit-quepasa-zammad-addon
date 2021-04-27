@@ -14,8 +14,8 @@ check token and return bot attributes of token
 =end
 
   def self.check_token(api_url, token)
-    api = QuepasaApi.new(api_url, token)
-    api.fetch_self()
+    @api = QuepasaApi.new(api_url, token)
+    @api.fetch_self()
   end
 
 =begin
@@ -30,19 +30,20 @@ returns
 
 =end
 
-  def self.set_webhook(token, callback_url)
-    if callback_url.match?(%r{^http://}i)
+  # token = Bot ID Token
+  # url = Enderaço já com segurança embutida para retorno das requisições
+  def self.set_webhook(token, url)
+    if url.match?(%r{^http://}i)
       raise Exceptions::UnprocessableEntity, 'webhook url need to start with https://, you use http://'
     end
 
     ### 
     ##  Nesse ponto avisa ao QuePasa para retornar nessa URL
-    ###
-    #api = TelegramAPI.new(token)
+    ###  
     #begin
-    #  api.setWebhook(callback_url)
+      @api.setWebHook(url)
     #rescue
-    #  raise Exceptions::UnprocessableEntity, 'Unable to set webhook at Telegram, seems to be a invalid url.'
+     # raise Exceptions::UnprocessableEntity, "Unable to set webhook at QuePasa, seems to be a invalid url :: #{url}"
     #end
     true
   end
@@ -84,6 +85,7 @@ returns
         channel = Channel.new
       end
     end
+
     channel.area = 'Quepasa::Account'
     channel.options = {
       adapter:   'quepasa',
@@ -186,6 +188,44 @@ Fetch AND import messages for the bot
 returns the latest last_seen_ts
 
 =end
+  def self.JsonMsgToObject(message_raw)
+    # caso tenho sido eu mesmo quem enviou a msg, não precisa processar pois o artigo já foi criado
+    return if ActiveModel::Type::Boolean.new.cast(message_raw['fromme'])            
+          
+    timestamp = message_raw['timestamp']
+    created_at = Quepasa.timestamp_to_date(timestamp)
+    message = {
+      id:         message_raw['id'],      # vindo direto do whatsapp
+      timestamp:  timestamp,              # double unix timestamp
+      created_at: created_at,             # no formato de data
+
+      # whatsapp controlador das msgs (bot)
+      controller: {
+        id: message_raw['controller']['id'],
+        title: message_raw['controller']['title'],
+        phone: message_raw['controller']['phone']
+      },  
+
+      # endereço garantido que deve receber uma resposta
+      replyto: {
+        id: message_raw['replyto']['id'],
+        title: message_raw['replyto']['title'],
+        phone: message_raw['replyto']['phone']
+      }, 
+
+      # se a msg foi postado em algum grupo ? quem postou !
+      participant: {
+        id: message_raw['participant']['id'],
+        title: message_raw['participant']['title'],
+        phone: message_raw['participant']['phone']
+      },
+      
+      attachment: message_raw['attachment'],
+      text:  message_raw['text']
+    }
+
+    return message
+  end
 
   def fetch_messages(group_id, channel, last_seen_ts)
 
@@ -198,42 +238,10 @@ returns the latest last_seen_ts
     @api.fetch(last_seen_ts).each do |message_raw|
       Rails.logger.debug { message_raw.inspect }
 
-      # caso tenho sido eu mesmo quem enviou a msg, não precisa processar pois o artigo já foi criado
-      next if ActiveModel::Type::Boolean.new.cast(message_raw['fromme'])            
-      
+      message = Quepasa.JsonMsgToObject(message_raw)
+      next if message.nil?
       count += 1
-      timestamp = message_raw['timestamp']
-      created_at = Quepasa.timestamp_to_date(timestamp)
-      message = {
-        id:         message_raw['id'],      # vindo direto do whatsapp
-        timestamp:  timestamp,              # double unix timestamp
-        created_at: created_at,             # no formato de data
-
-        # whatsapp controlador das msgs (bot)
-        controller: {
-          id: message_raw['controller']['id'],
-          title: message_raw['controller']['title'],
-          phone: message_raw['controller']['phone']
-        },  
-
-        # endereço garantido que deve receber uma resposta
-        replyto: {
-          id: message_raw['replyto']['id'],
-          title: message_raw['replyto']['title'],
-          phone: message_raw['replyto']['phone']
-        }, 
-
-        # se a msg foi postado em algum grupo ? quem postou !
-        participant: {
-          id: message_raw['participant']['id'],
-          title: message_raw['participant']['title'],
-          phone: message_raw['participant']['phone']
-        },
-        
-        attachment: message_raw['attachment'],
-        text:  message_raw['text']
-      }
-
+      
       #Rails.logger.debug{"channel.created_at#{channel.created_at} > message[:created_at]#{message[:created_at]} "}
       if channel.created_at > message[:created_at] || older_import >= older_import_max
         older_import += 1
@@ -442,8 +450,8 @@ returns the latest last_seen_ts
 
   def to_article(message, user, ticket, channel)
 
-    Rails.logger.info { 'SUFF: Segue a msg para depuração' }
-    Rails.logger.info { "SUFF: #{message}" }
+    #Rails.logger.info { 'SUFF: Segue a msg para depuração' }
+    #Rails.logger.info { "SUFF: #{message}" }
 
     Rails.logger.debug { 'Create article from message...' }
     Rails.logger.debug { message.inspect }
@@ -528,7 +536,7 @@ returns the latest last_seen_ts
   end
 
   # usado ao enviar msg apartir de um artigo, respondendo um artigo
-  def from_article(article)    
+  def from_article(article)   
     r = @api.send_message(article[:to], article[:body])
 
     Rails.logger.info { "SUFF: from article: #{article} :: #{r}" }

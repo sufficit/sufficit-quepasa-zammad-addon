@@ -71,10 +71,21 @@ class QuepasaApi
     messages
   end
 
+  # Vai na API do QuePasa e faz o download do anexo específico
+  # Individualmente
   def getAttachment(attachment)
     Rails.logger.info { "SUFF: Enviando requisição ... #{attachment.to_json}" } 
-    url = @api + '/bot/' + @token + "/attachment"
+    url = @api + '/bot/' + @token + '/attachment'
     ret = RestClient.post(url, attachment.to_json, { :content_type => :json, accept: :json })
+    ret
+  end
+
+  # Vai na API do QuePasa e atualiza o endereço de webhook para agilizar as entregas de msgs
+  def setWebHook(urlWebHook)    
+    Rails.logger.info { "SUFF: Atualizando WebHook ... #{urlWebHook}" } 
+    payload = { url: urlWebHook }
+    url = @api + '/bot/' + @token + '/webhook'
+    ret = RestClient.post(url, payload.to_json, { :content_type => :json, accept: :json })
     ret
   end
 end

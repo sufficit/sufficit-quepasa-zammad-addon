@@ -70,6 +70,8 @@ returns
 =end
 
   def send(options, article, _notification = false)
+    Rails.logger.info { "SUFF: channel/driver/quepasa/send: #{article} :: #{options}" }
+
     # return if we run import mode
     Rails.logger.debug { "quepasa send started importmode? #{Setting.get('import_mode')}" }
     return if Setting.get('import_mode')
