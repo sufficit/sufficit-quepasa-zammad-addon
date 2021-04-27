@@ -61,14 +61,18 @@ class ChannelsQuepasaController < ApplicationController
     channel = Quepasa.bot_by_bot_id(params['id'])
     raise Exceptions::UnprocessableEntity, 'bot not found' if !channel
 
-    if channel.options[:callback_token] != params['callback_token']
+    if channel.options[:callback_token] != params['callback_token'] 
       raise Exceptions::UnprocessableEntity, 'invalid callback token'
+    end
+
+    if params['message'].nil?
+      raise Exceptions::UnprocessableEntity, 'null or empty message'
     end
 
     quepasa = Quepasa.new(channel.options[:api_url], channel.options[:api_token])
     begin
       message = Quepasa.JsonMsgToObject(params['message'])
-      quepasa.to_group(message, channel.group_id, channel)
+      quepasa.to_group(message, channel.group_id, channel)      
     rescue Exceptions::UnprocessableEntity => e
       Rails.logger.error e.message
     end

@@ -241,6 +241,8 @@ returns the latest last_seen_ts
       message = Quepasa.JsonMsgToObject(message_raw)
       next if message.nil?
       count += 1
+      created_at = message[:created_at] 
+      timestamp = message[:timestamp] 
       
       #Rails.logger.debug{"channel.created_at#{channel.created_at} > message[:created_at]#{message[:created_at]} "}
       if channel.created_at > message[:created_at] || older_import >= older_import_max
