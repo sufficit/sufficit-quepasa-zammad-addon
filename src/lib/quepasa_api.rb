@@ -48,8 +48,10 @@ class QuepasaApi
     get('')
   end
 
-  def send_message(recipient, text, options = {})
-    payload = { recipient: recipient.to_s, message: text }.merge(parse_hash(options))
+  # Envia para QuePasa
+  # QuePasa espera por (recipient, message, attachments?(opicional))
+  def sendMessage(recipient, text, attachment, options = {})
+    payload = { recipient: recipient.to_s, message: text, attachment: attachment }.merge(parse_hash(options))
     results = post('send', payload)
     results
   end

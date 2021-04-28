@@ -271,7 +271,7 @@ returns the latest last_seen_ts
 =end
 
   # Sufficit padrão para envio de msg
-  def messageSendText(recipient, message, language = 'en')
+  def SendMessage(recipient, message, attachments, language = 'pt-br')
     return if Rails.env.test?
 
     locale = Locale.find_by(alias: language)
@@ -283,13 +283,18 @@ returns the latest last_seen_ts
       message = Translation.translate(locale[:locale], message)
     end
 
-    @api.sendMessage(recipient, message)
+    @api.sendMessage(recipient, message, attachments)
   end
 
-  def send_message(recipient, message)
+  def SendMessageFromArticle(message)
     return if Rails.env.test?
-
-    @api.send_message(recipient, message)
+    
+    r = @api.sendMessage(message[:to], message[:text], message[:attachment])
+    if r['result'].present? and r['result']['source'].present?
+      r['result']['source'] = r['result']['source']
+      r['result']['recipient'] = r['result']['recipient']
+    end
+    r
   end
 
   def to_wagroup(message)
@@ -301,7 +306,7 @@ returns the latest last_seen_ts
       # definindo o que utilizar como endpoint de usuario
       endPointID = message[:replyto][:id]
       endPointTitle = message[:replyto][:title]
-      endPointPhone =message[:replyto][:phone]
+      endPointPhone = message[:replyto][:phone]
 
       # create or update users  
       auth = Authorization.find_by(uid: endPointID, provider: 'quepasa')
@@ -439,10 +444,14 @@ returns the latest last_seen_ts
       priority_id: Ticket::Priority.find_by(default_create: true).id,
       customer_id: user.id,
       preferences: {
+        # Usado para encontrar esse elemento ao responder um ticket
+        # Usado somente se não encontrar pelo quepasa:bot
         channel_id: channel.id,
+        
+        # Salva informações do contato para ser usado ao responder qualquer artigo dentro deste ticket
         quepasa:  {
-          bot_id:  channel.options[:bot][:id],
-          chat_id: message[:replyto][:id]
+          bot:  channel.options[:bot][:id], # Qual Whatsapp utilizar para resposta
+          replyto: message[:replyto][:id] # Destino no whatsapp
         }
       }
     )
@@ -497,7 +506,7 @@ returns the latest last_seen_ts
         o_id:   article.id,
       )
 
-      document      = get_file(message[:replyto][:id], attachment, 'pt-br')      
+      document = get_file(message[:replyto][:id], attachment, 'pt-br')      
       extension = Rack::Mime::MIME_TYPES.invert[attachment['mime']]
       Store.add(
         object:      'Ticket::Article',
@@ -535,18 +544,6 @@ returns the latest last_seen_ts
     end
 
     ticket
-  end
-
-  # usado ao enviar msg apartir de um artigo, respondendo um artigo
-  def from_article(article)   
-    r = @api.send_message(article[:to], article[:body])
-
-    Rails.logger.info { "SUFF: from article: #{article} :: #{r}" }
-    if r['result'].present? and r['result']['source'].present?
-      r['result']['source'] = r['result']['source']
-      r['result']['recipient'] = r['result']['recipient']
-    end
-    r
   end
 
   def get_file(request, attachment, language)

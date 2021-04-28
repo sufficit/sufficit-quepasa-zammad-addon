@@ -14,29 +14,49 @@ class Observer::Ticket::Article::CommunicateQuepasa::BackgroundJob
     Rails.logger.debug "quepasa background job running"
     log_error(article, "Can't find ticket.preferences for Ticket.find(#{article.ticket_id})") if !ticket.preferences
     log_error(article, "Can't find ticket.preferences['quepasa'] for Ticket.find(#{article.ticket_id})") if !ticket.preferences['quepasa']
-    log_error(article, "Can't find ticket.preferences['quepasa']['chat_id'] for Ticket.find(#{article.ticket_id})") if !ticket.preferences['quepasa']['chat_id']
-    log_error(article, "Can't find ticket.preferences['quepasa']['bot_id'] for Ticket.find(#{article.ticket_id})") if !ticket.preferences['quepasa']['bot_id']
-
-    channel = Quepasa.bot_by_bot_id(ticket.preferences['quepasa']['bot_id'])
+    log_error(article, "Can't find ticket.preferences['quepasa']['replyto'] for Ticket.find(#{article.ticket_id})") if !ticket.preferences['quepasa']['replyto']
+    log_error(article, "Can't find ticket.preferences['quepasa']['bot'] for Ticket.find(#{article.ticket_id})") if !ticket.preferences['quepasa']['bot']
+    
+    channel = Quepasa.bot_by_bot_id(ticket.preferences['quepasa']['bot'])
     Rails.logger.debug { "quepasa got channel for #{channel.inspect}" }
 
     if !channel
       channel = Channel.lookup(id: ticket.preferences['channel_id'])
     end
-    log_error(article, "No such channel for bot #{ticket.preferences['quepasa']['bot_id']} or channel id #{ticket.preferences['channel_id']}") if !channel
+    log_error(article, "No such channel for bot #{ticket.preferences['quepasa']['bot']} or channel id #{ticket.preferences['channel_id']}") if !channel
     log_error(article, "Channel.find(#{channel.id}) has no quepasa api token!") if channel.options[:api_token].blank?
+       
 
-    begin
+
+    # Buscando Anexos
+    attachments = []
+    article.attachments.each do |attachment|
+      data = {
+        'length'   => attachment.size.to_i,
+        'filename' => attachment.filename,
+        'mime'     => attachment.preferences['Content-Type'] || attachment.preferences['Mime-Type'] || 'application/octet-stream',
+        #'content'  => attachment.content,
+        'base64'  => Base64.encode64(attachment.content).delete("\n"),
+      }
+      attachments.push data
+    end
+
+
+
+
+    begin      
+      Rails.logger.debug { "SUFF: Background Job perform deliver" }
       result = channel.deliver(
-        to:   ticket.preferences[:quepasa][:chat_id],
-        body: article.body,
+        to:   ticket.preferences[:quepasa][:replyto],
+        text: article.body,
+        attachment: attachments.first
       )
     rescue => e
       log_error(article, e.message)
       return
     end
 
-    Rails.logger.debug { "send result: #{result}" }
+    Rails.logger.info { "SUFF: Background Job perform send result: #{result}" }
 
     if result.nil? || result[:error].present?
       log_error(article, 'Delivering Quepasa message failed!')
@@ -46,8 +66,8 @@ class Observer::Ticket::Article::CommunicateQuepasa::BackgroundJob
     # ainda não descobri como isso é utilizado e exibido
     Rails.logger.info { "SUFF: send result: #{result}" }
     
-    article.to = result['result']['recipient']
-    article.from = result['result']['source']
+    #article.to = result['result']['recipient']
+    #article.from = result['result']['source']
     message_id = result['result']['messageId']
 
     article.preferences['quepasa'] = {

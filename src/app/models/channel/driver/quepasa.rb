@@ -69,8 +69,10 @@ returns
 
 =end
 
-  def send(options, article, _notification = false)
-    Rails.logger.info { "SUFF: channel/driver/quepasa/send: #{article} :: #{options}" }
+  # options = Channel.Options ( propriedades do quepasa )
+  # message = Algumas propriedades do artigo + anexos
+  def send(options, message, _notification = false)
+    Rails.logger.info { "SUFF: channel/driver/quepasa/send" }
 
     # return if we run import mode
     Rails.logger.debug { "quepasa send started importmode? #{Setting.get('import_mode')}" }
@@ -80,7 +82,7 @@ returns
 
     Rails.logger.debug { options.inspect }
     @quepasa = ::Quepasa.new(options[:api_url], options[:api_token])
-    @quepasa.from_article(article)
+    @quepasa.SendMessageFromArticle(message)
   end
 
 =begin
