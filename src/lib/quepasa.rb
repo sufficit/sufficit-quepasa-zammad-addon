@@ -506,15 +506,16 @@ returns the latest last_seen_ts
         o_id:   article.id,
       )
 
-      document = get_file(message[:replyto][:id], attachment, 'pt-br')      
-      extension = Rack::Mime::MIME_TYPES.invert[attachment['mime']]
+      document = get_file(message[:replyto][:id], attachment, 'pt-br')  
+      singleMime = attachment['mime'].split(';', 1)
+      extension = Rack::Mime::MIME_TYPES.invert[singleMime]
       Store.add(
         object:      'Ticket::Article',
         o_id:        article.id,
         data:        document,
         filename:    "#{message[:id]}#{extension}",
         preferences: {
-          'Mime-Type' => attachment['mime'],
+          'Mime-Type' => singleMime,
         },
       )
     end
