@@ -56,6 +56,7 @@ class ChannelsQuepasaController < ApplicationController
 
   # SUFFICIT webhook para receber as msgs de forma instantânea
   def webhook
+    Rails.logger.info { "SUFF: From webhook testing ...." }
     raise Exceptions::UnprocessableEntity, 'bot id is missing' if params['id'].blank?
 
     channel = Quepasa.bot_by_bot_id(params['id'])
@@ -68,6 +69,8 @@ class ChannelsQuepasaController < ApplicationController
     if params['message'].nil?
       raise Exceptions::UnprocessableEntity, 'null or empty message'
     end
+
+    Rails.logger.info { "SUFF: From webhook accept !" }
 
     quepasa = Quepasa.new(channel.options[:api_url], channel.options[:api_token])
     begin
