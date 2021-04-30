@@ -89,10 +89,7 @@ returns
     channel.area = 'Quepasa::Account'
     channel.options = {
       adapter:   'quepasa',
-      bot:       {
-        id:     bot['id'],
-        number: bot['number'],
-      },
+      bot:       Quepasa.JsonEndPointToObject(bot),
       callback_token: callback_token,
       callback_url:   callback_url,
       api_token: token,
@@ -188,6 +185,17 @@ Fetch AND import messages for the bot
 returns the latest last_seen_ts
 
 =end
+  ### Convert para o objeto QPEndPoint vindo de json
+  def self.JsonEndPointToObject(endpoint_raw)
+    endpoint = {
+      id: endpoint_raw['id'],
+      title: endpoint_raw['title'],
+      phone: endpoint_raw['phone'],
+      status: endpoint_raw['status'],
+    }
+    return endpoint
+  end
+
   def self.JsonMsgToObject(message_raw)
     # caso tenho sido eu mesmo quem enviou a msg, não precisa processar pois o artigo já foi criado
     return if ActiveModel::Type::Boolean.new.cast(message_raw['fromme'])            
@@ -200,25 +208,13 @@ returns the latest last_seen_ts
       created_at: created_at,             # no formato de data
 
       # whatsapp controlador das msgs (bot)
-      controller: {
-        id: message_raw['controller']['id'],
-        title: message_raw['controller']['title'],
-        phone: message_raw['controller']['phone']
-      },  
+      controller: Quepasa.JsonEndPointToObject(message_raw['controller']),
 
       # endereço garantido que deve receber uma resposta
-      replyto: {
-        id: message_raw['replyto']['id'],
-        title: message_raw['replyto']['title'],
-        phone: message_raw['replyto']['phone']
-      }, 
+      replyto: Quepasa.JsonEndPointToObject(message_raw['replyto']),
 
       # se a msg foi postado em algum grupo ? quem postou !
-      participant: {
-        id: message_raw['participant']['id'],
-        title: message_raw['participant']['title'],
-        phone: message_raw['participant']['phone']
-      },
+      participant: Quepasa.JsonEndPointToObject(message_raw['participant']),
       
       attachment: message_raw['attachment'],
       text:  message_raw['text']
@@ -476,7 +472,7 @@ returns the latest last_seen_ts
       type_id:      Ticket::Article::Type.find_by(name: 'quepasa personal-message').id,
       sender_id:    Ticket::Article::Sender.find_by(name: 'Customer').id,
       from:         "#{user[:firstname]}#{user[:lastname]}",
-      to:           "#{channel[:options][:bot][:number]} - #{channel[:options][:bot][:name]}",
+      to:           "#{channel[:options][:bot][:phone]} - #{channel[:options][:bot][:name]}",
       message_id:   message[:id],
       internal:     false,
       preferences:  {
