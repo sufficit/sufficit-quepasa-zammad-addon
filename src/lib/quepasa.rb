@@ -418,7 +418,7 @@ returns the latest last_seen_ts
 
     # find ticket or create one
     state_ids = Ticket::State.where(name: %w[closed merged removed]).pluck(:id)
-    ticket = Ticket.where(customer_id: user.id).where.not(state_id: state_ids).order(:updated_at).first
+    ticket = Ticket.where(customer_id: user.id).where(preferences: { quepasa:{ bot: channel.options[:bot][:id] } }).where.not(state_id: state_ids).order(:updated_at).first
     if ticket
 
       # check if title need to be updated
