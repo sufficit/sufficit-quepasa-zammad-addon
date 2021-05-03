@@ -402,7 +402,7 @@ returns the latest last_seen_ts
   def to_ticket(message, user, group_id, channel)
     UserInfo.current_user_id = user.id
 
-    Rails.logger.debug { 'Create ticket from message...' }
+    Rails.logger.debug { "Create ticket from message..." }
     Rails.logger.debug { message.inspect }
     Rails.logger.debug { user.inspect }
     Rails.logger.debug { group_id.inspect }
@@ -418,8 +418,10 @@ returns the latest last_seen_ts
 
     # find ticket or create one
     state_ids = Ticket::State.where(name: %w[closed merged removed]).pluck(:id)
-    ticket = Ticket.where(customer_id: user.id).where(preferences: { quepasa:{ bot: channel.options[:bot][:id] } }).where.not(state_id: state_ids).order(:updated_at).first
+    bot_id = channel.options[:bot][:id]
+    ticket = Ticket.where(customer_id: user.id).where.not(state_id: state_ids).where("preferences LIKE :bot", {:bot => "%bot: #{bot_id}%"}).order(:updated_at).first
     if ticket
+      Rails.logger.info { "SUFF: Append to ticket(#{ticket.id}) from message... #{bot_id}" }
 
       # check if title need to be updated
       if ticket.title == '-'
@@ -433,6 +435,7 @@ returns the latest last_seen_ts
       return ticket
     end
 
+    Rails.logger.info { "SUFF: Creating new ticket from message... #{bot_id}" }
     ticket = Ticket.new(
       group_id:    group_id,
       title:       title,
