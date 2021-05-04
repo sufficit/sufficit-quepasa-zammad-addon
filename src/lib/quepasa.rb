@@ -196,9 +196,7 @@ returns the latest last_seen_ts
     return endpoint
   end
 
-  def self.JsonMsgToObject(message_raw)
-    # caso tenho sido eu mesmo quem enviou a msg, não precisa processar pois o artigo já foi criado
-    return if ActiveModel::Type::Boolean.new.cast(message_raw['fromme'])            
+  def self.JsonMsgToObject(message_raw)          
           
     timestamp = message_raw['timestamp']
     created_at = Quepasa.timestamp_to_date(timestamp)
@@ -212,6 +210,7 @@ returns the latest last_seen_ts
 
       # endereço garantido que deve receber uma resposta
       replyto: Quepasa.JsonEndPointToObject(message_raw['replyto']),
+      fromme: message_raw['fromme'], # se foi eu quem enviou essa msg
 
       # se a msg foi postado em algum grupo ? quem postou !
       participant: Quepasa.JsonEndPointToObject(message_raw['participant']),
@@ -229,13 +228,20 @@ returns the latest last_seen_ts
     older_import_max = 40
     new_last_seen_date = Quepasa.timestamp_to_date(last_seen_ts)
     new_last_seen_ts = last_seen_ts
-    self_source_id = channel.options['bot']['number']
+    #self_source_id = channel.options['bot']['number']
     count = 0
     @api.fetch(last_seen_ts).each do |message_raw|
       Rails.logger.debug { message_raw.inspect }
 
       message = Quepasa.JsonMsgToObject(message_raw)
       next if message.nil?
+
+      # caso tenho sido eu mesmo quem enviou a msg, não precisa processar pois o artigo já foi criado
+      next if ActiveModel::Type::Boolean.new.cast(message[:fromme])    
+
+      # ignorando msgs de status do whatsapp
+      next if message[:replyto][:id] == 'status@broadcast'
+
       count += 1
       created_at = message[:created_at] 
       timestamp = message[:timestamp] 
@@ -247,6 +253,7 @@ returns the latest last_seen_ts
         next
       end
 
+      # pula caso já exista algum artigo com esse id de mensagem
       next if Ticket::Article.find_by(message_id: message[:id])
 
       to_group(message, group_id, channel)
