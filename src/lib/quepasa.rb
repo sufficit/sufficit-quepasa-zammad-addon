@@ -329,9 +329,16 @@ returns the latest last_seen_ts
       end
 
       # atualizando nome de usuario se possível
-      user.firstname = endPointTitle || user.firstname || "unknown"
-      user.lastname = " (WHATSAPP GROUP)"
-      user.save!
+      suffixName = " (WHATSAPP GROUP)"
+      
+      # atualiza o primeiro nome do usuário com a definição mais atual vinda do whatsapp
+      # somente realiza a mudança se o último nome estiver em branco ou caso ainda tenha a tag (WHATSAPP)
+      # removendo ou modificando manualmente este sufixo, faz com que o titulo para de ser atualizado automáticamente
+      if user.lastname.empty? || user.lastname == suffixName
+        user.firstname = endPointTitle || endPointPhone || user.firstname || "unknown"
+        user.lastname = suffixName
+        user.save!
+      end
 
       # create or update authorization
       auth_data = {
@@ -386,9 +393,16 @@ returns the latest last_seen_ts
     end
     
     # atualizando nome de usuario se possível
-    user.firstname = endPointTitle || endPointPhone || user.firstname || "unknown"
-    user.lastname = " (WHATSAPP)"
-    user.save!
+    suffixName = " (WHATSAPP)"
+    
+    # atualiza o primeiro nome do usuário com a definição mais atual vinda do whatsapp
+    # somente realiza a mudança se o último nome estiver em branco ou caso ainda tenha a tag (WHATSAPP)
+    # removendo ou modificando manualmente este sufixo, faz com que o titulo para de ser atualizado automáticamente
+    if user.lastname.empty? || user.lastname == suffixName
+      user.firstname = endPointTitle || endPointPhone || user.firstname || "unknown"
+      user.lastname = suffixName
+      user.save!
+    end
 
     # create or update authorization
     auth_data = {
