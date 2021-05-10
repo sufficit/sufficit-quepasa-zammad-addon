@@ -329,7 +329,7 @@ returns the latest last_seen_ts
       end
 
       # atualizando nome de usuario se possível
-      suffixName = " (WHATSAPP GROUP)"
+      suffixName = "(WHATSAPP GROUP)"
       
       # atualiza o primeiro nome do usuário com a definição mais atual vinda do whatsapp
       # somente realiza a mudança se o último nome estiver em branco ou caso ainda tenha a tag (WHATSAPP)
@@ -393,7 +393,7 @@ returns the latest last_seen_ts
     end
     
     # atualizando nome de usuario se possível
-    suffixName = " (WHATSAPP)"
+    suffixName = "(WHATSAPP)"
     
     # atualiza o primeiro nome do usuário com a definição mais atual vinda do whatsapp
     # somente realiza a mudança se o último nome estiver em branco ou caso ainda tenha a tag (WHATSAPP)
