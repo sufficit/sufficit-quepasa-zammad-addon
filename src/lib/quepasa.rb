@@ -222,25 +222,33 @@ returns the latest last_seen_ts
     return message
   end
 
+  ## Metodo de entrada exclusivo para o processamento das mensagens recebidas
+  def self.MessageValidate(message)
+
+    # caso seja nula ou inválida
+    return false if message.nil?
+
+    # caso tenho sido eu mesmo quem enviou a msg, não precisa processar pois o artigo já foi criado
+    return false if ActiveModel::Type::Boolean.new.cast(message[:fromme])    
+
+    # ignorando msgs de status do whatsapp
+    return false if message[:replyto][:id] == 'status@broadcast'
+
+    return true
+  end
+
   def fetch_messages(group_id, channel, last_seen_ts)
 
     older_import = 0
     older_import_max = 40
     new_last_seen_date = Quepasa.timestamp_to_date(last_seen_ts)
     new_last_seen_ts = last_seen_ts
-    #self_source_id = channel.options['bot']['number']
     count = 0
     @api.fetch(last_seen_ts).each do |message_raw|
       Rails.logger.debug { message_raw.inspect }
 
       message = Quepasa.JsonMsgToObject(message_raw)
-      next if message.nil?
-
-      # caso tenho sido eu mesmo quem enviou a msg, não precisa processar pois o artigo já foi criado
-      next if ActiveModel::Type::Boolean.new.cast(message[:fromme])    
-
-      # ignorando msgs de status do whatsapp
-      next if message[:replyto][:id] == 'status@broadcast'
+      next if !Quepasa.MessageValidate(message)
 
       count += 1
       created_at = message[:created_at] 

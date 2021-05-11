@@ -75,6 +75,7 @@ class ChannelsQuepasaController < ApplicationController
     quepasa = Quepasa.new(channel.options[:api_url], channel.options[:api_token])
     begin
       message = Quepasa.JsonMsgToObject(params['message'])
+      return if !Quepasa.MessageValidate(message)
       quepasa.to_group(message, channel.group_id, channel)      
     rescue Exceptions::UnprocessableEntity => e
       Rails.logger.error e.message
