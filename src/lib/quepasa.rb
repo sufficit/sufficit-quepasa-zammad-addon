@@ -540,13 +540,21 @@ returns the latest last_seen_ts
         singleMime = singleMime.match(";").pre_match
       end
 
+      # Tentando extrair o nome do arquivo
+      fileName = attachment['filename']
+      if fileName.nil? || fileName.empty?
+        extension = Rack::Mime::MIME_TYPES.invert[singleMime]
+        fileName = "#{message[:id]}#{extension}"
+      end
+
+      # Tentando extrair dados binarios (conteudo do anexo)
       document = get_file(message[:replyto][:id], attachment, 'pt-br')       
-      extension = Rack::Mime::MIME_TYPES.invert[singleMime]
+      
       Store.add(
         object:      'Ticket::Article',
         o_id:        article.id,
         data:        document,
-        filename:    "#{message[:id]}#{extension}",
+        filename:    fileName,
         preferences: {
           'Mime-Type' => singleMime,
         },
