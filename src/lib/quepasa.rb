@@ -547,18 +547,24 @@ returns the latest last_seen_ts
         fileName = "#{message[:id]}#{extension}"
       end
 
-      # Tentando extrair dados binarios (conteudo do anexo)
-      document = get_file(message[:replyto][:id], attachment, 'pt-br')       
-      
-      Store.add(
-        object:      'Ticket::Article',
-        o_id:        article.id,
-        data:        document,
-        filename:    fileName,
-        preferences: {
-          'Mime-Type' => singleMime,
-        },
-      )
+      begin
+        # Tentando extrair dados binarios (conteudo do anexo)
+        document = get_file(message[:replyto][:id], attachment, 'pt-br')      
+
+        Store.add(
+          object:      'Ticket::Article',
+          o_id:        article.id,
+          data:        document,
+          filename:    fileName,
+          preferences: {
+            'Mime-Type' => singleMime,
+          },
+        )
+
+        rescue 
+          article.body = "(( Erro ao tentar baixar anexo ))"
+          article.save!
+        end
     end
     
     return article    
@@ -594,7 +600,7 @@ returns the latest last_seen_ts
     # quepasa bot files are limited up to 20MB
     if !validate_file_size(attachment['length'])
       message_text = 'WhatsApp file is to big. (Maximum 20mb)'
-      messageSendText(request, "Sorry, we could not handle your message. #{message_text}", language)
+      ## messageSendText(request, "Sorry, we could not handle your message: #{message_text}", language)
       raise Exceptions::UnprocessableEntity, message_text
     end
 
@@ -602,7 +608,7 @@ returns the latest last_seen_ts
 
     if !validate_download(result)
       message_text = 'Unable to get you file from bot.'
-      messageSendText(request, "Sorry, we could not handle your message. #{message_text}", language)
+      ## messageSendText(request, "Sorry, we could not handle your message: #{message_text}", language)
       raise Exceptions::UnprocessableEntity, message_text
     end
 
