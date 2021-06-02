@@ -1,0 +1,17 @@
+class AddWhatsappToUsers < ActiveRecord::Migration[5.2]
+  def up
+
+    # return if it's a new setup
+    return if !Setting.exists?(name: 'system_init_done')
+
+    fetched_setting = Setting.find_by(name: 'ui_ticket_create_available_types')
+    return if !fetched_setting
+
+    if fetched_setting.options.form.options.include? 'whatsapp-out'
+      return
+
+    fetched_setting.options.form.options..push('whatsapp-out' => '4. WhatsApp outbound')
+    fetched_setting.save!
+
+  end
+end

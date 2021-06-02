@@ -52,7 +52,7 @@ class QuepasaReply
     return articleTypes if articleTypeCreate isnt 'quepasa personal-message'
     articleTypes.push {
       name:              'quepasa personal-message'
-      icon:              'quepasa'
+      icon:              'whatsapp'
       attributes:        []
       internal:          false,
       features:          ['attachment']
@@ -64,14 +64,16 @@ class QuepasaReply
   @setArticleTypePost: (type, ticket, ui) ->
     return if type isnt 'quepasa personal-message'
     rawHTML = ui.$('[data-name=body]').html()
-    cleanHTML = App.Utils.htmlRemoveRichtext(rawHTML)
+    cleanHTML = rawHTML #corrigindo formatação
+    #cleanHTML = App.Utils.htmlRemoveRichtext(rawHTML)
     if cleanHTML && cleanHTML.html() != rawHTML
       ui.$('[data-name=body]').html(cleanHTML)
 
   @params: (type, params, ui) ->
     if type is 'quepasa personal-message'
-      App.Utils.htmlRemoveRichtext(ui.$('[data-name=body]'), false)
+      #App.Utils.htmlRemoveRichtext(ui.$('[data-name=body]'), false)
       params.content_type = 'text/plain'
+      #params.body = params.body
       params.body = App.Utils.html2text(params.body, true)
 
     params

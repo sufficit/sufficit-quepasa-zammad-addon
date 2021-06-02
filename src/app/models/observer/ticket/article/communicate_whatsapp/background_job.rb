@@ -1,4 +1,4 @@
-class Observer::Ticket::Article::CommunicateQuepasa::BackgroundJob
+class Observer::Ticket::Article::CommunicateWhatsapp::BackgroundJob
   def initialize(id)
     @article_id = id
   end
