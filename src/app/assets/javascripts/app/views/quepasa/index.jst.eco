@@ -1,6 +1,6 @@
 <div class="page-header">
   <div class="page-header-title">
-    <h1><%- @T('QuePasa') %> <small><%- @T('Bots') %></small></h1>
+    <h1><%- @T('Quepasa') %> <small><%- @T('Bots') %></small></h1>
   </div>
 
   <div class="page-header-meta">
@@ -12,19 +12,19 @@
 
 <% if _.isEmpty(@channels): %>
   <div class="page-description">
-    <p><%- @T('You have no configured %s right now.', 'QuePasa Bot') %></p>
+    <p><%- @T('You have no configured %s right now.', 'Quepasa Bot') %></p>
   </div>
 <% else: %>
 
 <% for channel in @channels: %>
   <div class="action <% if channel.active isnt true: %>is-inactive<% end %>" data-id="<%= channel.id %>">
     <div class="action-block action-row">
-      <h2><%- @Icon('status', 'supergood-color inline') %> <%= channel.options.bot.phone %></h2>
+      <h2><%- @Icon('status', 'supergood-color inline') %> <%= channel.options.bot.first_name %> <span class="text-muted">@<%= channel.options.bot.username %></span></h2>
     </div>
     <div class="action-flow action-flow--row">
       <div class="action-block">
         <h3><%- @T('Messages') %></h3>
-        <%= channel.options.bot.phone %>
+        @<%= channel.options.bot.username %>
       </div>
       <%- @Icon('arrow-right', 'action-flow-icon') %>
       <div class="action-block">

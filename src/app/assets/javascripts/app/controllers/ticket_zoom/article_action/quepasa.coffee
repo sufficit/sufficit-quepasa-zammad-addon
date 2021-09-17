@@ -1,6 +1,6 @@
 class QuepasaReply
   @action: (actions, ticket, article, ui) ->
-    return actions if ui.permissionCheck('ticket.customer')
+    return actions if ticket.currentView() is 'customer'
 
     if article.sender.name is 'Customer' && article.type.name is 'quepasa personal-message'
       actions.push {
@@ -43,7 +43,7 @@ class QuepasaReply
     true
 
   @articleTypes: (articleTypes, ticket, ui) ->
-    return articleTypes if !ui.permissionCheck('ticket.agent')
+    return articleTypes if ticket.currentView() is 'customer'
 
     return articleTypes if !ticket || !ticket.create_article_type_id
 
@@ -52,7 +52,7 @@ class QuepasaReply
     return articleTypes if articleTypeCreate isnt 'quepasa personal-message'
     articleTypes.push {
       name:              'quepasa personal-message'
-      icon:              'whatsapp'
+      icon:              'quepasa'
       attributes:        []
       internal:          false,
       features:          ['attachment']
@@ -64,16 +64,14 @@ class QuepasaReply
   @setArticleTypePost: (type, ticket, ui) ->
     return if type isnt 'quepasa personal-message'
     rawHTML = ui.$('[data-name=body]').html()
-    cleanHTML = rawHTML #corrigindo formatação
-    #cleanHTML = App.Utils.htmlRemoveRichtext(rawHTML)
+    cleanHTML = App.Utils.htmlRemoveRichtext(rawHTML)
     if cleanHTML && cleanHTML.html() != rawHTML
       ui.$('[data-name=body]').html(cleanHTML)
 
   @params: (type, params, ui) ->
     if type is 'quepasa personal-message'
-      #App.Utils.htmlRemoveRichtext(ui.$('[data-name=body]'), false)
+      App.Utils.htmlRemoveRichtext(ui.$('[data-name=body]'), false)
       params.content_type = 'text/plain'
-      #params.body = params.body
       params.body = App.Utils.html2text(params.body, true)
 
     params

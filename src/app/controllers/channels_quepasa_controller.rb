@@ -1,11 +1,13 @@
+# Copyright (C) 2012-2016 Zammad Foundation, http://zammad-foundation.org/
+
 class ChannelsQuepasaController < ApplicationController
-  prepend_before_action -> { authentication_check(permission: 'admin.channel_quepasa') }, except: [:webhook]
+  prepend_before_action -> { authentication_check && authorize! }, except: [:webhook]
   skip_before_action :verify_csrf_token, only: [:webhook]
 
   def index
     assets = {}
     channel_ids = []
-    Channel.where(area: 'Quepasa::Account').order(:id).each do |channel|
+    Channel.where(area: 'Quepasa::Bot').order(:id).each do |channel|
       assets = channel.assets(assets)
       channel_ids.push channel.id
     end
@@ -17,7 +19,7 @@ class ChannelsQuepasaController < ApplicationController
 
   def add
     begin
-      channel = Quepasa.create_or_update_channel(params[:api_url], params[:api_token], params)
+      channel = Quepasa.create_or_update_channel(params[:api_token], params)
     rescue => e
       raise Exceptions::UnprocessableEntity, e.message
     end
@@ -25,9 +27,9 @@ class ChannelsQuepasaController < ApplicationController
   end
 
   def update
-    channel = Channel.find_by(id: params[:id], area: 'Quepasa::Account')
+    channel = Channel.find_by(id: params[:id], area: 'Quepasa::Bot')
     begin
-      channel = Quepasa.create_or_update_channel(params[:api_url], params[:api_token], params, channel)
+      channel = Quepasa.create_or_update_channel(params[:api_token], params, channel)
     rescue => e
       raise Exceptions::UnprocessableEntity, e.message
     end
@@ -35,52 +37,43 @@ class ChannelsQuepasaController < ApplicationController
   end
 
   def enable
-    channel = Channel.find_by(id: params[:id], area: 'Quepasa::Account')
+    channel = Channel.find_by(id: params[:id], area: 'Quepasa::Bot')
     channel.active = true
     channel.save!
     render json: {}
   end
 
   def disable
-    channel = Channel.find_by(id: params[:id], area: 'Quepasa::Account')
+    channel = Channel.find_by(id: params[:id], area: 'Quepasa::Bot')
     channel.active = false
     channel.save!
     render json: {}
   end
 
   def destroy
-    channel = Channel.find_by(id: params[:id], area: 'Quepasa::Account')
+    channel = Channel.find_by(id: params[:id], area: 'Quepasa::Bot')
     channel.destroy
     render json: {}
   end
 
-  # SUFFICIT webhook para receber as msgs de forma instantânea
   def webhook
-    Rails.logger.info { "SUFF: From webhook testing ...." }
-    raise Exceptions::UnprocessableEntity, 'bot id is missing' if params['id'].blank?
+    raise Exceptions::UnprocessableEntity, 'bot id is missing' if params['bid'].blank?
 
-    channel = Quepasa.bot_by_bot_id(params['id'])
+    channel = Quepasa.bot_by_bot_id(params['bid'])
     raise Exceptions::UnprocessableEntity, 'bot not found' if !channel
 
-    if channel.options[:callback_token] != params['callback_token'] 
+    if channel.options[:callback_token] != params['callback_token']
       raise Exceptions::UnprocessableEntity, 'invalid callback token'
     end
 
-    if params['message'].nil?
-      raise Exceptions::UnprocessableEntity, 'null or empty message'
-    end
-
-    Rails.logger.info { "SUFF: From webhook accept !" }
-
-    quepasa = Quepasa.new(channel.options[:api_url], channel.options[:api_token])
+    quepasa = Quepasa.new(channel.options[:api_token])
     begin
-      message = Quepasa.JsonMsgToObject(params['message'])
-      return if !Quepasa.MessageValidate(message)
-      quepasa.to_group(message, channel.group_id, channel)      
+      quepasa.to_group(params, channel.group_id, channel)
     rescue Exceptions::UnprocessableEntity => e
       Rails.logger.error e.message
     end
 
     render json: {}, status: :ok
-  end  
+  end
+
 end
