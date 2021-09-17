@@ -1,5 +1,5 @@
 class QuepasaUserId < ActiveRecord::Migration[4.2]
-  def up
+  def self.up
 
     # return if it's a new setup
     return if !Setting.exists?(name: 'system_init_done')
@@ -39,4 +39,11 @@ class QuepasaUserId < ActiveRecord::Migration[4.2]
     )
 
   end
+
+ def self.down
+  a = ObjectManager::Attribute.find_by(name: "quepasa")
+  if !a.nil?
+    a.destroy
+  end
+ end
 end
