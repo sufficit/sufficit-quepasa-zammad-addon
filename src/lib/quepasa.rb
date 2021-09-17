@@ -35,9 +35,10 @@ returns
 =end
 
   def self.set_webhook(token, callback_url)
-    ### Removed for testing prorpouses 
     ### Removed for testing
     ### Removed for testing
+    ### Removed for testing
+
     #if callback_url.match?(%r{^http://}i)
     #  raise Exceptions::UnprocessableEntity, 'webhook url need to start with https://, you use http://'
     #end

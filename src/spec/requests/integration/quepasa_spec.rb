@@ -2,6 +2,7 @@ require 'rails_helper'
 
 RSpec.describe 'Quepasa Webhook Integration', type: :request do
 
+  let!(:api) { 'http://api.quepasa.org:31000/v2' }
   let!(:token) { 'valid_token' }
   let!(:token2) { 'valid_token2' }
   let!(:bot_id) { 123_456_789 }
@@ -13,7 +14,7 @@ RSpec.describe 'Quepasa Webhook Integration', type: :request do
 
     describe 'check_token' do
       it 'invalid token' do
-        stub_request(:post, 'https://api.quepasa.org/botinvalid_token/getMe')
+        stub_request(:post, "#{api}/botinvalid_token/getMe")
           .to_return(status: 404, body: '{"ok":false,"error_code":404,"description":"Not Found"}', headers: {})
 
         expect do
@@ -23,7 +24,7 @@ RSpec.describe 'Quepasa Webhook Integration', type: :request do
 
       it 'valid token' do
 
-        stub_request(:post, "https://api.quepasa.org/bot#{token}/getMe")
+        stub_request(:post, "#{api}/bot#{token}/getMe")
           .to_return(status: 200, body: "{\"ok\":true,\"result\":{\"id\":#{bot_id},\"first_name\":\"Chrispresso Customer Service\",\"username\":\"ChrispressoBot\"}}", headers: {})
 
         bot = Quepasa.check_token(token)
@@ -37,7 +38,7 @@ RSpec.describe 'Quepasa Webhook Integration', type: :request do
 
         Setting.set('http_type', 'http')
 
-        stub_request(:post, "https://api.quepasa.org/bot#{token}/getMe")
+        stub_request(:post, "#{api}/bot#{token}/getMe")
           .to_return(status: 200, body: "{\"ok\":true,\"result\":{\"id\":#{bot_id},\"first_name\":\"Chrispresso Customer Service\",\"username\":\"ChrispressoBot\"}}", headers: {})
 
         expect do
@@ -51,9 +52,9 @@ RSpec.describe 'Quepasa Webhook Integration', type: :request do
         Setting.set('http_type', 'https')
         Setting.set('fqdn', 'somehost.example.com:12345')
 
-        stub_request(:post, "https://api.quepasa.org:443/bot#{token}/getMe")
+        stub_request(:post, "#{api}/bot#{token}/getMe")
           .to_return(status: 200, body: "{\"ok\":true,\"result\":{\"id\":#{bot_id},\"first_name\":\"Chrispresso Customer Service\",\"username\":\"ChrispressoBot\"}}", headers: {})
-        stub_request(:post, "https://api.quepasa.org:443/bot#{token}/setWebhook")
+        stub_request(:post, "#{api}/bot#{token}/setWebhook")
           .with(body: { 'url' => "https://somehost.example.com:12345/api/v1/channels_quepasa_webhook/callback_token?bid=#{bot_id}" })
           .to_return(status: 400, body: '{"ok":false,"error_code":400,"description":"Bad Request: bad webhook: Webhook can be set up only on ports 80, 88, 443 or 8443"}', headers: {})
 
@@ -67,10 +68,10 @@ RSpec.describe 'Quepasa Webhook Integration', type: :request do
         Setting.set('http_type', 'https')
         Setting.set('fqdn', 'somehost.example.com')
 
-        stub_request(:post, "https://api.quepasa.org:443/bot#{token}/getMe")
+        stub_request(:post, "#{api}/bot#{token}/getMe")
           .to_return(status: 200, body: "{\"ok\":true,\"result\":{\"id\":#{bot_id},\"first_name\":\"Chrispresso Customer Service\",\"username\":\"ChrispressoBot\"}}", headers: {})
 
-        stub_request(:post, "https://api.quepasa.org:443/bot#{token}/setWebhook")
+        stub_request(:post, "#{api}/bot#{token}/setWebhook")
           .with(body: { 'url' => "https://somehost.example.com/api/v1/channels_quepasa_webhook/callback_token?bid=#{bot_id}" })
           .to_return(status: 400, body: '{"ok":false,"error_code":400,"description":"Bad Request: bad webhook: getaddrinfo: Name or service not known"}', headers: {})
 
@@ -85,10 +86,10 @@ RSpec.describe 'Quepasa Webhook Integration', type: :request do
         Setting.set('fqdn', 'example.com')
         UserInfo.current_user_id = 1
 
-        stub_request(:post, "https://api.quepasa.org:443/bot#{token}/getMe")
+        stub_request(:post, "#{api}/bot#{token}/getMe")
           .to_return(status: 200, body: "{\"ok\":true,\"result\":{\"id\":#{bot_id},\"first_name\":\"Chrispresso Customer Service\",\"username\":\"ChrispressoBot\"}}", headers: {})
 
-        stub_request(:post, "https://api.quepasa.org:443/bot#{token}/setWebhook")
+        stub_request(:post, "#{api}/bot#{token}/setWebhook")
           .with(body: { 'url' => "https://example.com/api/v1/channels_quepasa_webhook/callback_token?bid=#{bot_id}" })
           .to_return(status: 200, body: '{"ok":true,"result":true,"description":"Webhook was set"}', headers: {})
 
@@ -104,17 +105,17 @@ RSpec.describe 'Quepasa Webhook Integration', type: :request do
         Setting.set('http_type', 'https')
         Setting.set('fqdn', 'example.com')
 
-        stub_request(:post, "https://api.quepasa.org:443/bot#{token}/getMe")
+        stub_request(:post, "#{api}/bot#{token}/getMe")
           .to_return(status: 200, body: "{\"ok\":true,\"result\":{\"id\":#{bot_id},\"first_name\":\"Chrispresso Customer Service\",\"username\":\"ChrispressoBot\"}}", headers: {})
 
-        stub_request(:post, "https://api.quepasa.org:443/bot#{token}/setWebhook")
+        stub_request(:post, "#{api}/bot#{token}/setWebhook")
           .with(body: { 'url' => "https://example.com/api/v1/channels_quepasa_webhook/callback_token?bid=#{bot_id}" })
           .to_return(status: 200, body: '{"ok":true,"result":true,"description":"Webhook was set"}', headers: {})
 
-        stub_request(:post, "https://api.quepasa.org:443/bot#{token2}/getMe")
+        stub_request(:post, "#{api}/bot#{token2}/getMe")
           .to_return(status: 200, body: "{\"ok\":true,\"result\":{\"id\":#{bot_id2},\"first_name\":\"Chrispresso Customer Service\",\"username\":\"ChrispressoBot2\"}}", headers: {})
 
-        stub_request(:post, "https://api.quepasa.org:443/bot#{token2}/setWebhook")
+        stub_request(:post, "#{api}/bot#{token2}/setWebhook")
           .with(body: { 'url' => "https://example.com/api/v1/channels_quepasa_webhook/callback_token?bid=#{bot_id2}" })
           .to_return(status: 200, body: '{"ok":true,"result":true,"description":"Webhook was set"}', headers: {})
       end
@@ -406,18 +407,18 @@ RSpec.describe 'Quepasa Webhook Integration', type: :request do
 
       # create mocks for every file type
       %w[document documentthumb voice sticker stickerthumb video videothumb photo].each do |file|
-        stub_request(:post, "https://api.quepasa.org/bot#{token}/getFile")
+        stub_request(:post, "#{api}/bot#{token}/getFile")
           .with(body: { 'file_id' => "#{file}fileid" })
           .to_return(status: 200, body: "{\"result\":{\"file_size\":123456,\"file_id\":\"#{file}fileid\",\"file_path\":\"documentfile\"}}", headers: {})
-        stub_request(:get, "https://api.quepasa.org/file/bot#{token}/#{file}file")
+        stub_request(:get, "#{api}/file/bot#{token}/#{file}file")
           .to_return(status: 200, body: "#{file}file", headers: {})
       end
 
       [1, 2, 3].each do |id|
-        stub_request(:post, "https://api.quepasa.org/bot#{token}/getFile")
+        stub_request(:post, "#{api}/bot#{token}/getFile")
           .with(body: { 'file_id' => "photofileid#{id}" })
           .to_return(status: 200, body: "{\"result\":{\"file_size\":3622849,\"file_id\":\"photofileid#{id}\",\"file_path\":\"photofile\"}}", headers: {})
-        stub_request(:get, "https://api.quepasa.org/file/bot#{token}/photofile")
+        stub_request(:get, "#{api}/file/bot#{token}/photofile")
           .to_return(status: 200, body: 'photofile', headers: {})
       end
     end
