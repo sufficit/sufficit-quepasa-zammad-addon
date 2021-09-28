@@ -35,10 +35,10 @@ returns
 =end
 
   def self.set_webhook(token, callback_url)
+    ### Removed for testing 
     ### Removed for testing
     ### Removed for testing
-    ### Removed for testing
-
+    
     #if callback_url.match?(%r{^http://}i)
     #  raise Exceptions::UnprocessableEntity, 'webhook url need to start with https://, you use http://'
     #end
@@ -179,6 +179,7 @@ returns
 
 =end
 
+  ### Não UTILIZADO ao copiar do telegram ..! ! !!
   def self.message_id(params)
     message_id = nil
     %i[message edited_message].each do |key|
@@ -287,320 +288,6 @@ returns
     end
 
     user
-  end
-
-  def to_ticket_old(params, user, group_id, channel)
-    UserInfo.current_user_id = user.id
-
-    Rails.logger.debug { 'Create ticket from message...' }
-    Rails.logger.debug { params.inspect }
-    Rails.logger.debug { user.inspect }
-    Rails.logger.debug { group_id.inspect }
-
-    # prepare title
-    title = '-'
-    %i[text caption].each do |area|
-      next if !params[:message]
-      next if !params[:message][area]
-
-      title = params[:message][area]
-      break
-    end
-    if title == '-'
-      %i[sticker photo document voice].each do |area|
-
-        next if !params[:message]
-        next if !params[:message][area]
-        next if !params[:message][area][:emoji]
-
-        title = params[:message][area][:emoji]
-        break
-      rescue
-        # just go ahead
-        title
-
-      end
-    end
-    if title.length > 60
-      title = "#{title[0, 60]}..."
-    end
-
-    # find ticket or create one
-    state_ids        = Ticket::State.where(name: %w[closed merged removed]).pluck(:id)
-    possible_tickets = Ticket.where(customer_id: user.id).where.not(state_id: state_ids).order(:updated_at)
-    ticket           = possible_tickets.find_each.find { |possible_ticket| possible_ticket.preferences[:channel_id] == channel.id }
-
-    if ticket
-      # check if title need to be updated
-      if ticket.title == '-'
-        ticket.title = title
-      end
-      new_state = Ticket::State.find_by(default_create: true)
-      if ticket.state_id != new_state.id
-        ticket.state = Ticket::State.find_by(default_follow_up: true)
-      end
-      ticket.save!
-      return ticket
-    end
-
-    ticket = Ticket.new(
-      group_id:    group_id,
-      title:       title,
-      state_id:    Ticket::State.find_by(default_create: true).id,
-      priority_id: Ticket::Priority.find_by(default_create: true).id,
-      customer_id: user.id,
-      preferences: {
-        channel_id: channel.id,
-        quepasa:   {
-          bid:     params['bid'],
-          chat_id: params[:message][:chat][:id]
-        }
-      },
-    )
-    ticket.save!
-    ticket
-  end
-
-  def to_article_old(params, user, ticket, channel, article = nil)
-
-    if article
-      Rails.logger.debug { 'Update article from message...' }
-    else
-      Rails.logger.debug { 'Create article from message...' }
-    end
-    Rails.logger.debug { params.inspect }
-    Rails.logger.debug { user.inspect }
-    Rails.logger.debug { ticket.inspect }
-
-    UserInfo.current_user_id = user.id
-
-    if article
-      article.preferences[:edited_message] = {
-        message:   {
-          created_at: params[:message][:date],
-          message_id: params[:message][:message_id],
-          from:       params[:message][:from],
-        },
-        update_id: params[:update_id],
-      }
-    else
-      article = Ticket::Article.new(
-        ticket_id:   ticket.id,
-        type_id:     Ticket::Article::Type.find_by(name: 'quepasa personal-message').id,
-        sender_id:   Ticket::Article::Sender.find_by(name: 'Customer').id,
-        from:        user(params)[:username],
-        to:          "@#{channel[:options][:bot][:username]}",
-        message_id:  Quepasa.message_id(params),
-        internal:    false,
-        preferences: {
-          message:   {
-            created_at: params[:message][:date],
-            message_id: params[:message][:message_id],
-            from:       params[:message][:from],
-          },
-          update_id: params[:update_id],
-        }
-      )
-    end
-
-    # add photo
-    if params[:message][:photo]
-
-      # find photo with best resolution for us
-      photo       = nil
-      max_width   = 650 * 2
-      last_width  = 0
-      last_height = 0
-
-      params[:message][:photo].each do |file|
-        if !photo
-          photo = file
-          last_width = file['width'].to_i
-          last_height = file['height'].to_i
-        end
-        next if file['width'].to_i >= max_width || file['width'].to_i <= last_width
-
-        photo       = file
-        last_width  = file['width'].to_i
-        last_height = file['height'].to_i
-      end
-      if last_width > 650
-        last_width = (last_width / 2).to_i
-        last_height = (last_height / 2).to_i
-      end
-
-      # download photo
-      photo_result = get_file(params, photo)
-      body = "<img style=\"width:#{last_width}px;height:#{last_height}px;\" src=\"data:image/png;base64,#{Base64.strict_encode64(photo_result.body)}\">"
-
-      if params[:message][:caption]
-        body += "<br>#{params[:message][:caption].text2html}"
-      end
-      article.content_type = 'text/html'
-      article.body         = body
-      article.save!
-      return article
-    end
-
-    # add document
-    if params[:message][:document]
-
-      document = params[:message][:document]
-      thumb    = params[:message][:document][:thumb]
-      body     = '&nbsp;'
-
-      if thumb
-        width        = thumb[:width]
-        height       = thumb[:height]
-        thumb_result = get_file(params, thumb)
-        body         = "<img style=\"width:#{width}px;height:#{height}px;\" src=\"data:image/png;base64,#{Base64.strict_encode64(thumb_result.body)}\">"
-      end
-      if params[:message][:caption]
-        body += "<br>#{params[:message][:caption].text2html}"
-      end
-      document_result      = get_file(params, document)
-      article.content_type = 'text/html'
-      article.body         = body
-      article.save!
-
-      Store.remove(
-        object: 'Ticket::Article',
-        o_id:   article.id,
-      )
-      Store.add(
-        object:      'Ticket::Article',
-        o_id:        article.id,
-        data:        document_result.body,
-        filename:    document[:file_name],
-        preferences: {
-          'Mime-Type' => document[:mime_type],
-        },
-      )
-      return article
-    end
-
-    # add video
-    if params[:message][:video]
-
-      video = params[:message][:video]
-      thumb = params[:message][:video][:thumb]
-      body = '&nbsp;'
-
-      if thumb
-        width        = thumb[:width]
-        height       = thumb[:height]
-        thumb_result = get_file(params, thumb)
-        body         = "<img style=\"width:#{width}px;height:#{height}px;\" src=\"data:image/png;base64,#{Base64.strict_encode64(thumb_result.body)}\">"
-      end
-
-      if params[:message][:caption]
-        body += "<br>#{params[:message][:caption].text2html}"
-      end
-      video_result         = get_file(params, video)
-      article.content_type = 'text/html'
-      article.body         = body
-      article.save!
-
-      Store.remove(
-        object: 'Ticket::Article',
-        o_id:   article.id,
-      )
-
-      # get video type
-      type = video[:mime_type].gsub(%r{(.+/)}, '')
-      Store.add(
-        object:      'Ticket::Article',
-        o_id:        article.id,
-        data:        video_result.body,
-        filename:    video[:file_name] || "video-#{video[:file_id]}.#{type}",
-        preferences: {
-          'Mime-Type' => video[:mime_type],
-        },
-      )
-      return article
-    end
-
-    # add voice
-    if params[:message][:voice]
-
-      voice = params[:message][:voice]
-      body  = '&nbsp;'
-
-      if params[:message][:caption]
-        body = "<br>#{params[:message][:caption].text2html}"
-      end
-
-      document_result      = get_file(params, voice)
-      article.content_type = 'text/html'
-      article.body         = body
-      article.save!
-
-      Store.remove(
-        object: 'Ticket::Article',
-        o_id:   article.id,
-      )
-      Store.add(
-        object:      'Ticket::Article',
-        o_id:        article.id,
-        data:        document_result.body,
-        filename:    voice[:file_path] || "audio-#{voice[:file_id]}.ogg",
-        preferences: {
-          'Mime-Type' => voice[:mime_type],
-        },
-      )
-      return article
-    end
-
-    # add sticker
-    if params[:message][:sticker]
-
-      sticker = params[:message][:sticker]
-      emoji   = sticker[:emoji]
-      thumb   = sticker[:thumb]
-      body    = '&nbsp;'
-
-      if thumb
-        width  = thumb[:width]
-        height = thumb[:height]
-        thumb_result = get_file(params, thumb)
-        body = "<img style=\"width:#{width}px;height:#{height}px;\" src=\"data:image/webp;base64,#{Base64.strict_encode64(thumb_result.body)}\">"
-        article.content_type = 'text/html'
-      elsif emoji
-        article.content_type = 'text/plain'
-        body = emoji
-      end
-
-      article.body = body
-      article.save!
-
-      if sticker[:file_id]
-
-        document_result = get_file(params, sticker)
-        Store.remove(
-          object: 'Ticket::Article',
-          o_id:   article.id,
-        )
-        Store.add(
-          object:      'Ticket::Article',
-          o_id:        article.id,
-          data:        document_result.body,
-          filename:    sticker[:file_name] || "#{sticker[:set_name]}.webp",
-          preferences: {
-            'Mime-Type' => 'image/webp', # mime type is not given from Quepasa API but this is actually WebP
-          },
-        )
-      end
-      return article
-    end
-
-    # add text
-    if params[:message][:text]
-      article.content_type = 'text/plain'
-      article.body = params[:message][:text]
-      article.save!
-      return article
-    end
-    raise Exceptions::UnprocessableEntity, 'invalid quepasa message'
   end
 
   # --------------------------------
@@ -850,6 +537,10 @@ returns
       article_sender_id = Ticket::Article::Sender.find_by(name: 'Agent').id
     end
 
+    # capturando timestamp correto do envio ou recebimento da msg pelo quepasa
+    # é preciso que seja em formato datetime, não int ou string
+    receveid_at = DateTime.strptime(message[:timestamp].to_s,'%s')
+
     article = Ticket::Article.new(
       ticket_id:    ticket.id,
       type_id:      Ticket::Article::Type.find_by(name: 'quepasa personal-message').id,
@@ -858,10 +549,11 @@ returns
       to:           "#{channel[:options][:bot][:phone]} - #{channel[:options][:bot][:name]}",
       message_id:   message[:message_id],
       internal:     false,
+      created_at:   receveid_at,
       preferences:  {
         quepasa: {
-          timestamp:  message[:timestamp],
-          message_id: message[:message_id],
+          timestamp:  message[:timestamp], # Duplicado, marcado para remoção, obsoleto
+          message_id: message[:message_id], # Duplicado, marcado para remoção, obsoleto
           from:       message[:replyto][:id],
         }
       }
