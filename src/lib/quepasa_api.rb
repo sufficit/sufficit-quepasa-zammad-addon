@@ -4,7 +4,7 @@ require 'net/https'
 require 'uri'
 require 'rest-client'
 
-class QuepasaAPI
+class QuepasaApi
 
   ENDPOINTS = %w[
     getUpdates setWebhook deleteWebhook getWebhookInfo getMe sendMessage

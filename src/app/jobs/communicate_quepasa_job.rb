@@ -26,7 +26,7 @@ class CommunicateQuepasaJob < ApplicationJob
     log_error(article, "Channel.find(#{channel.id}) has not quepasa api token!") if channel.options[:api_token].blank?
 
     begin
-      api = QuepasaAPI.new(channel.options[:api_token])
+      api = QuepasaApi.new(channel.options[:api_token])
       chat_id = ticket.preferences[:quepasa][:chat_id]
       result = api.sendMessage(chat_id, article.body)
       me = api.getMe()

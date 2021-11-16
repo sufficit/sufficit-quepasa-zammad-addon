@@ -13,7 +13,7 @@ check token and return bot attributes of token
 =end
 
   def self.check_token(token)
-    api = QuepasaAPI.new(token)
+    api = QuepasaApi.new(token)
     begin
       bot = api.getMe()
     rescue
@@ -43,7 +43,7 @@ returns
     #  raise Exceptions::UnprocessableEntity, 'webhook url need to start with https://, you use http://'
     #end
 
-    api = QuepasaAPI.new(token)
+    api = QuepasaApi.new(token)
     begin
       api.setWebhook(callback_url)
     rescue
@@ -212,7 +212,7 @@ returns
 
   def initialize(token)
     @token = token
-    @api = QuepasaAPI.new(token)
+    @api = QuepasaApi.new(token)
   end
 
 =begin
