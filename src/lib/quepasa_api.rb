@@ -4,6 +4,7 @@ require 'net/https'
 require 'uri'
 require 'rest-client'
 
+# @description Controls the send and received messages from quepasa servers api
 class QuepasaApi
 
   ENDPOINTS = %w[

@@ -477,11 +477,16 @@ returns
     if title.length > 60
       title = "#{title[0, 60]}..."
     end
-
-    # find ticket or create one
-    state_ids = Ticket::State.where(name: %w[closed merged removed]).pluck(:id)
+        
+    # find ticket or create one   
     bot_id = message['bid']
-    ticket = Ticket.where(customer_id: user.id).where.not(state_id: state_ids).where("preferences LIKE :bid", {:bid => "%bid: #{bot_id}%"}).order(:updated_at).first
+    state_ids        = Ticket::State.where(name: %w[closed merged removed]).pluck(:id)
+    possible_tickets = Ticket.where(customer_id: user.id).where.not(state_id: state_ids).order(:updated_at)
+    ticket           = possible_tickets.find_each.find { |possible_ticket| possible_ticket.preferences[:channel_id] == channel.id && possible_ticket.preferences[:quepasa][:bid] == bot_id }
+    
+    # old method
+    # ticket = Ticket.where(customer_id: user.id).where.not(state_id: state_ids).where("preferences LIKE :bid", {:bid => "%bid: #{bot_id}%"}).order(:updated_at).first
+    
     if ticket
       Rails.logger.info { "SUFF: Append to ticket(#{ticket.id}) from message... #{bot_id}" }
 

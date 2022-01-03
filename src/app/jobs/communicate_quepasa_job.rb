@@ -1,7 +1,7 @@
 class CommunicateQuepasaJob < ApplicationJob
-
+  
   retry_on StandardError, attempts: 4, wait: lambda { |executions|
-    executions * 120.seconds
+    executions * 5.seconds
   }
 
   def perform(article_id)
@@ -28,7 +28,28 @@ class CommunicateQuepasaJob < ApplicationJob
     begin
       api = QuepasaApi.new(channel.options[:api_token])
       chat_id = ticket.preferences[:quepasa][:chat_id]
-      result = api.sendMessage(chat_id, article.body)
+
+      # ajustando o corpo da msg para texto simples caso ainda não seja
+      if article.content_type != 'text/plain'
+
+        Rails.logger.info { "QUEPASA: adjust content type #{article.content_type} :: #{article.body}" }
+
+        # tenta atualizar primeiro, depois troca o formato se a atualização foi bem sucedida        
+        article.body = article.body.html2text
+        article.content_type = 'text/plain'
+      end
+
+      messageToSend = article.body
+
+      ### Prepend user name to quepasa
+      user = User.find_by(id: article.created_by_id)
+      if user 
+        Rails.logger.info { "QUEPASA: Prepending user title" }
+        prependText = "\*#{user.firstname} #{user.lastname}\*: "
+        messageToSend = "#{prependText}#{messageToSend}"
+      end
+
+      result = api.sendMessage(chat_id, messageToSend)
       me = api.getMe()
       article.attachments.each do |attach|
         document = {
@@ -44,7 +65,7 @@ class CommunicateQuepasaJob < ApplicationJob
       return
     end
 
-    Rails.logger.info { "result info: #{result}" }
+    Rails.logger.info { "QUEPASA: Result info: #{result}" }
 
     # only private, group messages. channel messages do not have from key
     if result
@@ -63,12 +84,11 @@ class CommunicateQuepasaJob < ApplicationJob
     article.preferences['delivery_status_message'] = nil
     article.preferences['delivery_status'] = 'success'
     article.preferences['delivery_status_date'] = Time.zone.now
-
-    article.message_id = "quepasa.#{result['message_id']}.#{result['chat']['id']}"
+    article.message_id = result['message_id']
 
     article.save!
 
-    Rails.logger.info "Send quepasa message to: '#{article.to}' (from #{article.from})"
+    Rails.logger.info "QUEPASA: Sended quepasa message to: '#{article.to}' (from #{article.from})"
 
     article
   end
@@ -80,11 +100,24 @@ class CommunicateQuepasaJob < ApplicationJob
     local_record.save
     Rails.logger.error message
 
+    ### Teste de tradução de mensagem de erro para o quepasa
     if local_record.preferences['delivery_retry'] > 3
+
+      prependMessage = "Unable to send quepasa message"
+      language_code = Setting.get('locale_default') || 'en'
+      locale = Locale.find_by(alias: language_code)
+      if !locale
+        locale = Locale.where('locale LIKE :prefix', prefix: "#{language_code}%").first
+      end
+
+      if locale
+        prependMessage = Translation.translate(locale[:locale], prependMessage)
+      end
+
       Ticket::Article.create(
         ticket_id:     local_record.ticket_id,
         content_type:  'text/plain',
-        body:          "Unable to send quepasa message: #{message}",
+        body:          "#{prependMessage}: #{message}",
         internal:      true,
         sender:        Ticket::Article::Sender.find_by(name: 'System'),
         type:          Ticket::Article::Type.find_by(name: 'note'),
