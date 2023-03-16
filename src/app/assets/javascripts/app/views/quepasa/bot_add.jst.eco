@@ -3,6 +3,17 @@
   <%- @T('The tutorial on how to manage a %s is hosted on our online documentation %l.', 'Quepasa Bot', 'https://admin-docs.zammad.org/en/latest/channels/quepasa.html') %>
 </p>
 <fieldset>
+
+  <h2><%- @T('%s Api Base Url', 'Quepasa') %></h2>
+  <div class="input form-group">
+    <div class="formGroup-label">
+      <label for="api_base_url"><%- @T('%s Api Base Url', 'Quepasa') %> <span>*</span></label>
+    </div>
+    <div class="controls">
+      <input id="api_base_url" type="text" name="api_base_url" value="http://api.quepasa.org:31000/v3" placeholder="http://api.quepasa.org:31000/v3" class="form-control" required autocomplete="off">
+    </div>
+  </div>
+
   <h2><%- @T('Enter your %s App Keys', 'Quepasa') %></h2>
   <div class="input form-group">
     <div class="formGroup-label">
@@ -12,23 +23,8 @@
       <input id="api_token" type="text" name="api_token" value="" class="form-control" required autocomplete="off">
     </div>
   </div>
+
   <h2><%- @T('Settings') %></h2>
-  <div class="input form-group">
-    <div class="formGroup-label">
-      <label for="welcome"><%- @T('Welcome message') %> <span>*</span></label>
-    </div>
-    <div class="controls">
-      <input id="welcome" type="text" name="welcome" value="" placeholder="<%- @Ti('You are welcome! Just ask me something!') %>" class="form-control" required autocomplete="off">
-    </div>
-  </div>
-  <div class="input form-group">
-    <div class="formGroup-label">
-      <label for="goodbye"><%- @T('Goodbye message') %> <span>*</span></label>
-    </div>
-    <div class="controls">
-      <input id="goodbye" type="text" name="goodbye" value="" placeholder="<%- @Ti('Have a nice day.') %>" class="form-control" required autocomplete="off">
-    </div>
-  </div>
   <div class="input form-group">
     <div class="formGroup-label">
       <label for=""><%- @T('Choose the group in which messages will get added to.') %> <span>*</span></label>

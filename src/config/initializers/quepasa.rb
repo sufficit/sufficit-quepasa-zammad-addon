@@ -9,7 +9,7 @@ Rails.application.config.before_configuration do
     end
     #File.write("public/assets/images/icons.svg", doc.to_xml)
 end
-  
+
 Rails.application.config.after_initialize do
     Ticket::Article.include(Ticket::Article::EnqueueCommunicateQuepasaJob)
     Rails.logger.info "Quepasa enqueue communicate jobs."
