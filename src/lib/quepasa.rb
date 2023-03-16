@@ -27,6 +27,13 @@ class Quepasa
     nil
   end
 
+  def self.GetChatIdByCustomer(customerId)
+    user = User.find(customerId)
+    raise RuntimeError, "user not found for id #{customerId}" if user.nil?
+
+    return user.quepasa
+  end
+
   def self.timestamp_to_date(timestamp_str)
     Time.at(timestamp_str.to_i).utc.to_datetime
   end
@@ -41,7 +48,7 @@ class Quepasa
   def CreateOrUpdateChannel(params, channel = nil)
 
     # verify api_token
-    bot = @client.fetch_self()
+    bot = client.fetch_self()
 
     if !channel && bot_duplicate?(bot['id'])
       raise Exceptions::UnprocessableEntity, __('This bot already exists.')
@@ -143,42 +150,236 @@ class Quepasa
     new_last_seen_ts
   end
 
-  def send_message(recipient, message)
+  # Usa a API para encaminhar uma mensagem, passando pelo sistema de tradução
+  def message(destination, message, language = 'en')
     return if Rails.env.test?
+    Rails.logger.info { '[QUEPASA] sending message ...' }
+    Rails.logger.info { message.inspect }
 
-    @client.send_message(recipient, message)
+    locale = Locale.find_by(alias: language)
+    if !locale
+      locale = Locale.where('locale LIKE :prefix', prefix: "#{language}%").first
+    end
+
+    if locale
+      message = Translation.translate(locale[:locale], message)
+    end
+
+    client.sendMessage(destination, message)
   end
 
-  def to_user(message)
-    Rails.logger.debug { 'Create user from message...' }
-    Rails.logger.debug { message.inspect }
+  def user(params)
+    {
+      id:         params[:message][:from][:id],
+      username:   params[:message][:from][:username],
+      first_name: params[:message][:from][:first_name],
+      last_name:  params[:message][:from][:last_name]
+    }
+  end
 
-    from_number = message[:from][:number]
-    from_name = message[:from][:name]
+  def to_user(params)
+    Rails.logger.info { '[QUEPASA] creating user from message ...' }
+    Rails.logger.info { params.inspect }
+
+    # do message_user lookup
+    message_user = user(params)
+
+    auth = Authorization.find_by(uid: message_user[:id], provider: 'quepasa')
 
     # create or update user
-    auth = Authorization.find_by(uid: from_number, provider: 'quepasa')
+    login = message_user[:username] || message_user[:id]
+    user_data = {
+      login:     login,
+      firstname: message_user[:first_name],
+      lastname:  message_user[:last_name],
+    }
+    if auth
+      user = User.find(auth.user_id)
+      user.update!(user_data)
+    else
+      if message_user[:username]
+        user_data[:note] = "Quepasa @#{message_user[:username]}"
+      end
+      user_data[:active]   = true
+      user_data[:role_ids] = Role.signup_role_ids
+      user                 = User.create(user_data)
+    end
 
+    # create or update authorization
+    auth_data = {
+      uid:      message_user[:id],
+      username: login,
+      user_id:  user.id,
+      provider: 'quepasa'
+    }
+    if auth
+      auth.update!(auth_data)
+    else
+      Authorization.create(auth_data)
+    end
+
+    user
+  end
+
+  # --------------------------------
+  # ---- SUFFICIT
+
+  ## Metodo de entrada exclusivo para o processamento das mensagens recebidas
+  def self.MessageValidate(message)
+    Rails.logger.info { '[QUEPASA] validating message' }
+    Rails.logger.info { message.inspect }
+
+    # caso seja nula ou inválida
+    return false if message.nil?
+
+    # caso tenho sido eu mesmo quem enviou a msg, não precisa processar pois o artigo já foi criado
+    return false if ActiveModel::Type::Boolean.new.cast(message[:fromme])
+
+    # ignorando msgs de status do whatsapp
+    return false if message[:chat][:id] == 'status@broadcast'
+
+    return true
+  end
+
+  # Porta de entrada das msgs
+  ## params = mensagem vinda da api ou do webhook diretamente
+  ## group_id => para qual grupo do zammad devem ir as mensagens
+  ## channel => canal/bot do quepasa que deve processar a msg
+  def to_group(message, group_id, channel)
+    Rails.logger.info { '[QUEPASA] to group' }
+
+    # Retorna por aqui caso a mensagem não seja válida
+    return if !Quepasa.MessageValidate(message)
+
+    Rails.logger.info { '[QUEPASA] finding article' }
+    # Retorna por aqui caso a msg já tenha sido processada em algum artigo
+    return if Ticket::Article.find_by(message_id: message[:id])
+
+    # define o ticket como nulo para comerçarmos o processo
+    ticket = nil
+
+    # cria um transação para garantir que todo o processo seja coerente no final
+    # se não conhece database transactions, pare por aqui e vai estudar
+    Transaction.execute(reset_user_id: true) do
+      wagroup = to_wagroup(message)   # cria um usuario caso a msg venha de algum grupo
+      wauser  = to_wauser(message)    # cria outro usuario caso seja uma msg direta ou para o participante do grupo
+
+      wagroup = wauser if wagroup.nil?
+      ticket = to_ticket(message, wagroup, group_id, channel)
+      to_article(message, wauser, ticket, channel)
+    end
+
+    ticket
+  end
+
+  def to_wagroup(message)
+    Rails.logger.info { 'QUEPASA: to user from group message ...' }
+
+    # Somente se for uma msg de grupo
+    if message[:chat][:id].end_with?("@g.us")
+
+      # definindo o que utilizar como endpoint de usuario
+      endPointID = message[:chat][:id]
+      endPointTitle = message[:chat][:title]
+      endPointPhone = message[:chat][:phone]
+
+      # create or update users
+      auth = Authorization.find_by(uid: endPointID, provider: 'quepasa')
+      user = if auth
+              User.find(auth.user_id)
+            else
+              User.where(quepasa: endPointID).order(:updated_at).first
+            end
+      unless user
+        Rails.logger.info { "[QUEPASA] create user from group message ... #{endPointID}" }
+        user = User.create!(
+          login:  endPointID,
+          quepasa: endPointID,
+          active:    true,
+          role_ids:  Role.signup_role_ids
+        )
+      end
+
+      # atualizando nome de usuario se possível
+      suffixName = "(GROUP)"
+
+      # atualiza o primeiro nome do usuário com a definição mais atual vinda do quepasa
+      # somente realiza a mudança se o último nome estiver em branco ou caso ainda tenha a tag (QUEPASA)
+      # removendo ou modificando manualmente este sufixo, faz com que o titulo para de ser atualizado automáticamente
+      if user.lastname.empty? || user.lastname == suffixName
+        user.firstname = endPointTitle || endPointPhone || user.firstname || "unknown"
+        user.lastname = suffixName
+        user.save!
+      end
+
+      # create or update authorization
+      auth_data = {
+        uid:      endPointID,
+        username: endPointID,
+        user_id:  user.id,
+        provider: 'quepasa'
+      }
+      if auth
+        auth.update!(auth_data)
+      else
+        Authorization.create(auth_data)
+      end
+
+    end
+
+    user
+  end
+
+  def to_wauser(message)
+    Rails.logger.info { '[QUEPASA] to user from message ...' }
+    Rails.logger.info { message.inspect }
+
+    # definindo o que utilizar como endpoint de usuario
+    if !(message[:participant][:id].to_s.empty?)
+      endPointID = message[:participant][:id]
+      endPointTitle = message[:participant][:title]
+      endPointPhone = message[:participant][:phone]
+    else
+      endPointID = message[:chat][:id]
+      endPointTitle = message[:chat][:title]
+      endPointPhone = message[:chat][:phone]
+    end
+
+    # create or update users
+    auth = Authorization.find_by(uid: endPointID, provider: 'quepasa')
     user = if auth
              User.find(auth.user_id)
            else
-             User.where(mobile: from_number).order(:updated_at).first
+             User.where(quepasa: endPointID).order(:updated_at).first
            end
     unless user
+      Rails.logger.info { "[QUEPASA] create user from message ... #{endPointID}" }
+
       user = User.create!(
-        firstname: from_name,
-        login:  from_number,
-        mobile:    from_number,
-        note:      "QuePasa #{from_number}",
+        phone: endPointPhone,
+        login:  endPointID,
+        quepasa: endPointID,
         active:    true,
         role_ids:  Role.signup_role_ids
       )
     end
 
+    # atualizando nome de usuario se possível
+    suffixName = "(CONTACT)"
+
+    # atualiza o primeiro nome do usuário com a definição mais atual vinda do quepasa
+    # somente realiza a mudança se o último nome estiver em branco ou caso ainda tenha a tag (CONTACT)
+    # removendo ou modificando manualmente este sufixo, faz com que o titulo para de ser atualizado automáticamente
+    if user.lastname.empty? || user.lastname == suffixName
+      user.firstname = endPointTitle || endPointPhone || user.firstname || "unknown"
+      user.lastname = suffixName
+      user.save!
+    end
+
     # create or update authorization
     auth_data = {
-      uid:      from_number,
-      username: from_number,
+      uid:      endPointID,
+      username: endPointID,
       user_id:  user.id,
       provider: 'quepasa'
     }
@@ -194,24 +395,33 @@ class Quepasa
   def to_ticket(message, user, group_id, channel)
     UserInfo.current_user_id = user.id
 
-    Rails.logger.debug { 'Create ticket from message...' }
-    Rails.logger.debug { message.inspect }
-    Rails.logger.debug { user.inspect }
-    Rails.logger.debug { group_id.inspect }
+    Rails.logger.info { '[QUEPASA] get or create ticket from message ...' }
+    Rails.logger.info { message.inspect }
+    Rails.logger.info { user.inspect }
+    Rails.logger.info { channel.inspect }
 
     # prepare title
     title = '-'
-    unless message[:message][:body].nil?
-      title = message[:message][:body]
+    unless message[:text].nil?
+      title = message[:text]
     end
     if title.length > 60
       title = "#{title[0, 60]}..."
     end
 
     # find ticket or create one
-    state_ids = Ticket::State.where(name: %w[closed merged removed]).pluck(:id)
-    ticket = Ticket.where(customer_id: user.id).where.not(state_id: state_ids).order(:updated_at).first
+    # raise RuntimeError, 'bot id not setted' if @bid.nil?
+    if @bid.nil?
+      info = check_token()
+      @bid = info['server']['bot']['id']
+    end
+
+    state_ids        = Ticket::State.where(name: %w[closed merged removed]).pluck(:id)
+    possible_tickets = Ticket.where(customer_id: user.id).where.not(state_id: state_ids)
+    ticket           = possible_tickets.find_each.find { |possible_ticket| possible_ticket.preferences[:channel_id] == channel.id }
+
     if ticket
+      Rails.logger.info { "[QUEPASA] append to ticket(#{ticket.id}) from message ... #{@bid}" }
 
       # check if title need to be updated
       if ticket.title == '-'
@@ -225,6 +435,7 @@ class Quepasa
       return ticket
     end
 
+    Rails.logger.info { "QUEPASA: creating new ticket from message ... #{@bid}" }
     ticket = Ticket.new(
       group_id:    group_id,
       title:       title,
@@ -232,11 +443,8 @@ class Quepasa
       priority_id: Ticket::Priority.find_by(default_create: true).id,
       customer_id: user.id,
       preferences: {
-        channel_id: channel.id,
-        quepasa:  {
-          bot_id:  channel.options[:bot][:id],
-          chat_id: message[:from][:number]
-        }
+        # Usado para encontrar esse elemento ao responder um ticket
+        channel_id: channel.id
       }
     )
     ticket.save!
@@ -245,91 +453,128 @@ class Quepasa
 
   def to_article(message, user, ticket, channel)
 
-    Rails.logger.debug { 'Create article from message...' }
-    Rails.logger.debug { message.inspect }
-    Rails.logger.debug { user.inspect }
-    Rails.logger.debug { ticket.inspect }
+    Rails.logger.info { 'QUEPASA: create article from message ...' }
+    Rails.logger.info { message.inspect }
+    Rails.logger.info { user.inspect }
+    Rails.logger.info { ticket.inspect }
+    Rails.logger.info { channel.inspect }
 
     UserInfo.current_user_id = user.id
 
+    article_sender_id = Ticket::Article::Sender.find_by(name: 'Customer').id
+    if user.permissions?('ticket.agent')
+      article_sender_id = Ticket::Article::Sender.find_by(name: 'Agent').id
+    end
+
+    #recovering type id from database
+    article_type_id = Ticket::Article::Type.find_by(name: 'quepasa personal-message').id
+
     article = Ticket::Article.new(
-      from:         message[:from][:number],
-      to:           channel[:options][:bot][:number],
-      body:         message[:message][:body],
-      content_type: 'text/plain',
-      message_id:   message[:id],
       ticket_id:    ticket.id,
-      type_id:      Ticket::Article::Type.find_by(name: 'quepasa personal-message').id,
-      sender_id:    Ticket::Article::Sender.find_by(name: 'Customer').id,
+      type_id:      article_type_id,
+      sender_id:    article_sender_id,
+      from:         "#{user[:firstname]}#{user[:lastname]}",
+      to:           "#{channel[:options][:bot][:phone]} - #{channel[:options][:bot][:name]}",
+      message_id:   message[:id],
       internal:     false,
-      preferences:  {
-        quepasa: {
-          timestamp:  message[:timestamp],
-          message_id: message[:id],
-          from:       message[:from][:number],
-        }
-      }
+      created_at:   message[:timestamp].to_datetime
     )
 
-    # TODO: attachments
-    # TODO voice
-    # TODO emojis
-    #
-    if message[:message][:body]
-      Rails.logger.debug { article.inspect }
-      article.save!
-      return article
-    end
-    raise 'invalid action'
-  end
-
-  def to_group(message, group_id, channel)
-    # begin import
-    Rails.logger.debug { 'quepasa import message' }
-
-    # TODO: handle messages in group chats
-
-    return if Ticket::Article.find_by(message_id: message[:id])
-
-    ticket = nil
-    # use transaction
-    Transaction.execute(reset_user_id: true) do
-      user = to_user(message)
-      ticket = to_ticket(message, user, group_id, channel)
-      to_article(message, user, ticket, channel)
+    if !message[:text]
+      raise Exceptions::UnprocessableEntity, 'invalid quepasa message'
     end
 
-    ticket
-  end
+    Rails.logger.info { 'QUEPASA: processando msg de texto simples ... ' }
+    article.content_type = 'text/plain'
+    article.body = message[:text]
+    article.save!
 
-  def number_to_whatsapp_user(number)
-    suffix = "@s.whatsapp.net"
-    whatsapp_user = number
-    unless number.include?(suffix)
-      whatsapp_user = "#{number}#{suffix}"
+    # Processando msg com anexos
+    attachment = message[:attachment]
+    if !attachment.nil? && !attachment.empty?
+      Rails.logger.info { 'QUEPASA: processing attachment ... ' }
+      Rails.logger.info { attachment.inspect }
+
+      Store.remove(
+        object: 'Ticket::Article',
+        o_id:   article.id,
+      )
+
+      # Tentando extrair apenas o conteudo MIME, sem as observações que vêm depois do ;
+      singleMime = attachment['mime']
+      if singleMime.match(";")
+        singleMime = singleMime.match(";").pre_match
+      end
+
+      # Tentando extrair o nome do arquivo
+      fileName = attachment['filename']
+      if fileName.nil? || fileName.empty?
+        extension = Rack::Mime::MIME_TYPES.invert[singleMime]
+        fileName = "#{message[:id]}#{extension}"
+      end
+
+      begin
+        # Tentando extrair dados binarios (conteudo do anexo)
+        document = get_file(message[:id], message[:chat][:id], attachment, 'pt-br')
+
+        Store.add(
+          object:      'Ticket::Article',
+          o_id:        article.id,
+          data:        document,
+          filename:    fileName,
+          preferences: {
+            'Mime-Type' => singleMime,
+          },
+        )
+
+        rescue => e
+          article.body = "(( error on downloading attachment )) :: #{e.message[0..50].gsub(/\s\w+\s*$/,'...')}"
+          article.save!
+        end
     end
-    if whatsapp_user.start_with?("+")
-      whatsapp_user = whatsapp_user[1..-1]
+
+    return article
+  end
+
+  def get_file(messageId, destination, attachment, language)
+
+    # quepasa bot files are limited up to 20MB
+    if !validate_file_size(attachment['filelength'])
+      message_text = 'file is to big. (maximum 20mb)'
+      message(destination, "sorry, we could not handle your message. #{message_text}", language)
+      raise Exceptions::UnprocessableEntity, message_text
     end
-    whatsapp_user
-  end
 
-  def whatsapp_user_to_number(whatsapp_user)
-    i = whatsapp_user.index("@") - 1
-    whatsapp_user[0..i]
-  end
-
-  def from_article(article)
-    r = @client.send_message(number_to_whatsapp_user(article[:to]), article[:body])
-    if r['result'].present? and r['result']['source'].present?
-      r['result']['source'] = self.whatsapp_user_to_number(r['result']['source'])
-      r['result']['recipient'] = self.whatsapp_user_to_number(r['result']['recipient'])
+    begin
+      Rails.logger.info { "QUEPASA: getting file ... " }
+      result = client.getAttachment(messageId)
+    rescue => e
+      Rails.logger.error { "QUEPASA: error on download attach: #{e}" }
+      message(destination, "sorry, we could not handle your message. system unknown error", language)
+      raise Exceptions::UnprocessableEntity, e.message
     end
-    r
+
+    if !validate_download(result)
+      message_text = 'unable to get you file from bot.'
+      message(destination, "sorry, we could not handle your message. #{message_text}", language)
+      raise Exceptions::UnprocessableEntity, message_text
+    end
+
+    result
   end
 
-  def download_file(file_id)
-    # TODO: attachments
+  def validate_file_size(length)
+    Rails.logger.info { "QUEPASA: validating file size, length: #{length}" }
+    return false if length >= 20.megabytes
+
+    true
+  end
+
+  def validate_download(result)
+    Rails.logger.info { "QUEPASA: validating download ..." }
+    return false if result.nil?
+
+    true
   end
 
 end

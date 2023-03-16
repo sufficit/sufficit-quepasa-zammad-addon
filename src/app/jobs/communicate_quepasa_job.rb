@@ -5,7 +5,7 @@ class CommunicateQuepasaJob < ApplicationJob
   }
 
   def perform(article_id)
-    Rails.logger.info { "QUEPASA COMMUNICATE: comunicate performing: #{article_id}" }
+    Rails.logger.info { "[QUEPASA][COMMUNICATE]: perform: #{article_id}" }
     article = Ticket::Article.find(article_id)
 
     # set retry count
@@ -13,11 +13,11 @@ class CommunicateQuepasaJob < ApplicationJob
     article.preferences['delivery_retry'] += 1
 
     ticket = Ticket.lookup(id: article.ticket_id)
-    log_error(article, "Can't find ticket.preferences for Ticket.find(#{article.ticket_id})", true) if !ticket.preferences
+    log_error(article, "[QUEPASA][COMMUNICATE] Can't find ticket.preferences for Ticket.find(#{article.ticket_id})", true) if !ticket.preferences
 
     channel = Channel.lookup(id: ticket.preferences['channel_id'])
-    log_error(article, "No such channel with id: #{ticket.preferences['channel_id']}", true) if !channel
-    log_error(article, "Channel.find(#{channel.id}) has not quepasa api token!", true) if channel.options[:api_token].blank?
+    log_error(article, "[QUEPASA][COMMUNICATE] No such channel with id: #{ticket.preferences['channel_id']}", true) if !channel
+    log_error(article, "[QUEPASA][COMMUNICATE] Channel.find(#{channel.id}) has not quepasa api token!", true) if channel.options[:api_token].blank?
 
     begin
       api = QuepasaApi.new(channel.options[:api_token], channel.options[:api_base_url])
@@ -25,7 +25,7 @@ class CommunicateQuepasaJob < ApplicationJob
       # ajustando o corpo da msg para texto simples caso ainda não seja
       if article.content_type != 'text/plain'
 
-        Rails.logger.info { "QUEPASA COMMUNICATE: adjust content type #{article.content_type} :: #{article.body}" }
+        Rails.logger.info { "[QUEPASA][COMMUNICATE] adjust content type #{article.content_type} :: #{article.body}" }
 
         # tenta atualizar primeiro, depois troca o formato se a atualização foi bem sucedida
         article.body = article.body.html2text
@@ -37,7 +37,7 @@ class CommunicateQuepasaJob < ApplicationJob
       ### Prepend user name to quepasa
       user = User.find_by(id: article.created_by_id)
       if user
-        Rails.logger.info { 'QUEPASA COMMUNICATE: prepending user title' }
+        Rails.logger.info { '[QUEPASA][COMMUNICATE] prepending user title' }
         prependText = "\*#{user.firstname} #{user.lastname}\*: "
         messageToSend = "#{prependText}#{messageToSend}"
       end
@@ -60,7 +60,7 @@ class CommunicateQuepasaJob < ApplicationJob
       return
     end
 
-    Rails.logger.info { "QUEPASA COMMUNICATE: result info: #{result}" }
+    Rails.logger.info { "[QUEPASA][COMMUNICATE] result info: #{result}" }
 
     # only private, group messages. channel messages do not have from key
     if result
@@ -84,7 +84,7 @@ class CommunicateQuepasaJob < ApplicationJob
 
     article.save!
 
-    Rails.logger.info { "QUEPASA COMMUNICATE: sended quepasa message to: '#{article.to}' (from #{article.from})" }
+    Rails.logger.info { "[QUEPASA][COMMUNICATE] sended quepasa message to: '#{article.to}' (from #{article.from})" }
     article
   end
 
