@@ -10,7 +10,7 @@
       <label for="api_base_url"><%- @T('%s Api Base Url', 'Quepasa') %> <span>*</span></label>
     </div>
     <div class="controls">
-      <input id="api_base_url" type="text" name="api_base_url" value="http://api.quepasa.org:31000/v3" placeholder="http://api.quepasa.org:31000/v3" class="form-control" required autocomplete="off">
+      <input id="api_base_url" type="text" name="api_base_url" value="http://api.quepasa.org:31000/v2" placeholder="http://api.quepasa.org:31000/v2" class="form-control" required autocomplete="off">
     </div>
   </div>
 

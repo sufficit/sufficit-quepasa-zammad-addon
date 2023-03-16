@@ -5,34 +5,15 @@ require 'uri'
 
 # @description Controls the send and received messages from quepasa servers api
 class QuepasaApi
+  attr_reader :api_token, :api_base_url
 
-  ENDPOINTS = %w[
-    getUpdates setWebhook deleteWebhook getWebhookInfo getMe sendMessage
-    forwardMessage sendPhoto sendAudio sendDocument sendVideo sendVoice
-    sendVideoNote sendMediaGroup sendLocation editMessageLiveLocation
-    stopMessageLiveLocation sendVenue sendContact sendChatAction
-    getUserProfilePhotos getFile kickChatMember unbanChatMember
-    restrictChatMember promoteChatMember leaveChat getChat
-    getChatAdministrators exportChatInviteLink setChatPhoto deleteChatPhoto
-    setChatTitle setChatDescription pinChatMessage unpinChatMessage
-    getChatMembersCount getChatMember setChatStickerSet deleteChatStickerSet
-    answerCallbackQuery editMessageText editMessageCaption
-    editMessageReplyMarkup deleteMessage sendSticker getStickerSet
-    uploadStickerFile createNewStickerSet addStickerToSet
-    setStickerPositionInSet deleteStickerFromSet answerInlineQuery
-    sendInvoice answerShippingQuery answerPreCheckoutQuery
-    sendGame setGameScore getGameHighScores setPassportDataErrors
-    editMessageMedia sendAnimation sendPoll stopPoll setChatPermissions
-    setChatAdministratorCustomTitle sendDice getMyCommands setMyCommands
-    setStickerSetThumb logOut close copyMessage createChatInviteLink
-    editChatInviteLink revokeChatInviteLink
-  ].freeze
-
-  attr_reader :token, :url
-
-  def initialize(token, url: 'http://api.quepasa.org:31000/v2')
-    @token = token
-    @url = url
+  def initialize(api_token, api_base_url = nil)
+    @api_token = api_token
+    @api_base_url = if !api_base_url.blank?
+      api_base_url
+    else
+      'http://api.quepasa.org:31000/v2'
+    end
   end
 
   def getMe()
@@ -42,7 +23,7 @@ class QuepasaApi
 
   # Vai na API do QuePasa e atualiza o endereГ§o de webhook para agilizar as entregas de msgs
   def setWebhook(urlWebHook)        
-    payload = { url: urlWebHook }
+    payload = { url: urlWebHook, forwardinternal: true, trackid: 'zammad' }
     ret = postJSON('/webhook', payload.to_json)
     ret
   end
@@ -50,7 +31,7 @@ class QuepasaApi
   # Envia para QuePasa
   # QuePasa espera por (recipient, message, attachments?(opcional))
   def sendMessage(chat_id, message)
-    Rails.logger.info { "[QUEPASA] Sending message to: #{chat_id} :: #{message}" } 
+    Rails.logger.info { "[QUEPASA][API] Sending message to: #{chat_id} :: #{message}" } 
 
     payload = { recipient: chat_id, message: message }
     ret = postJSON('/sendtext', payload.to_json)
@@ -58,8 +39,8 @@ class QuepasaApi
   end
 
   def sendDocument(chat_id, document)
-    Rails.logger.info { "[QUEPASA] Sending document to: #{chat_id} " }  
-    Rails.logger.info { "[QUEPASA] #{ document[:filename] }" }
+    Rails.logger.info { "[QUEPASA][API] Sending document to: #{chat_id} " }  
+    Rails.logger.info { "[QUEPASA][API] #{ document[:filename] }" }
 
     payload = { recipient: chat_id, attachment: document }
     ret = postJSON('/senddocument', payload.to_json)
@@ -69,7 +50,7 @@ class QuepasaApi
   # Vai na API do QuePasa e faz o download do anexo especГ­fico
   # Individualmente
   def getAttachment(payload)
-    Rails.logger.info { "[QUEPASA] Downloading attachment :: #{payload[:mime]}" } 
+    Rails.logger.info { "[QUEPASA][API] Downloading attachment :: #{payload[:mime]}" } 
 
     ret = postJSON('/attachment', payload.to_json)
     ret
@@ -100,8 +81,8 @@ class QuepasaApi
   # payload => json already converted post payload
   # endpoint => "/webhook"
   def postJSON(endpoint, payload)
-    urlQuery = URI(@url + '/bot/' + @token + endpoint)
-    Rails.logger.info { "[QUEPASA] post at: #{urlQuery} with: #{payload}" } 
+    urlQuery = URI(@api_base_url + '/bot/' + @api_token + endpoint)
+    Rails.logger.info { "[QUEPASA][API] post at: #{urlQuery} with: #{payload}" } 
 
     req = Net::HTTP::Post.new(urlQuery)
     req.body = payload
@@ -111,14 +92,14 @@ class QuepasaApi
     end
  
     ret = resp.body 
-    Rails.logger.info { "[QUEPASA] posted response: #{ret}" } 
+    Rails.logger.info { "[QUEPASA][API] posted response: #{ret}" } 
     ret
   end
 
   # checked !
   # endpoint => "/webhook" + query => "/webhook?id=uiuiui"
   def getJSON(endpoint = '')
-    urlQuery = URI(@url + '/bot/' + @token + endpoint)
+    urlQuery = URI(@api_base_url + '/bot/' + @api_token + endpoint)
     resp = Net::HTTP.get_response(urlQuery)
     ret = JSON.parse(resp.body)
     ret
@@ -141,7 +122,7 @@ class QuepasaApi
   end
 
 
-  def fetch(last_seen_ts=nil)
+  def fetch(last_seen_ts = nil)
     if last_seen_ts.nil?
       params = {}
     else

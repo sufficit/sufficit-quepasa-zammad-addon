@@ -2,24 +2,8 @@
 
 class Channel::Driver::Quepasa
 
-=begin
-
-  instance = Channel::Driver::Quepasa.new
-  instance.send(
-    {
-      adapter: 'quepasa',
-      auth: {
-        api_key: api_key
-      },
-    },
-    quepasa_attributes,
-    notification
-  )
-
-=end
-
   def send(options, article, notification = false)
-    Rails.logger.info { "QUEPASA DRIVER: sending, notification: #{notification} " }
+    Rails.logger.info { "[QUEPASA][DRIVER] sending, notification: #{notification} " }
     Rails.logger.info { options.inspect }
     Rails.logger.info { article.inspect }
 
@@ -28,20 +12,17 @@ class Channel::Driver::Quepasa
 
     options = check_external_credential(options)
 
-    @client = Quepasa.new(options)
-    @client.from_article(article)
+    quepasa = Quepasa.new(options)
+    quepasa.from_article(article)
 
   end
 
-=begin
+  def fetch(adapter_options, params)
+    Rails.logger.info { "[QUEPASA][DRIVER] fetch" }
+    Rails.logger.info { adapter_options.inspect }
+    Rails.logger.info { params.inspect }
+  end
 
-  Channel::Driver::Quepasa.streamable?
-
-returns
-
-  true|false
-
-=end
   def fetchable?(channel)
     return true if Rails.env.test?
 

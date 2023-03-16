@@ -2,90 +2,10 @@ require 'quepasa_api'
 
 class Quepasa
 
-  attr_accessor :client
-
-=begin
-
-check token and return bot attributes of token
-
-  bot = Quepasa.check_token('token')
-
-=end
-
-  def self.check_token(api_url, token)
-    api = QuepasaApi.new(api_url, token)
-    api.fetch_self()
-  end
-
-=begin
-
-create or update channel, store bot attributes and verify token
-
-  channel = Quepasa.create_or_update_channel('token', params)
-
-returns
-
-  channel # instance of Channel
-
-=end
-
-  def self.create_or_update_channel(api_url, token, params, channel = nil)
-
-    # verify token
-    bot = Quepasa.check_token(api_url, token)
-
-    if !channel
-      if Quepasa.bot_duplicate?(bot['id'])
-        raise 'Bot already exists!'
-      end
-    end
-
-    if params[:group_id].blank?
-      raise 'Group needed!'
-    end
-
-    group = Group.find_by(id: params[:group_id])
-    if !group
-      raise 'Group invalid!'
-    end
-
-    if !channel
-      channel = Quepasa.bot_by_bot_id(bot['id'])
-      if !channel
-        channel = Channel.new
-      end
-    end
-    channel.area = 'Quepasa::Account'
-    channel.options = {
-      adapter:   'quepasa',
-      bot:       {
-        id:     bot['id'],
-        number: bot['number'],
-      },
-      api_token: token,
-      api_url:   api_url,
-      welcome:   params[:welcome],
-    }
-    channel.group_id = group.id
-    channel.active = true
-    channel.save!
-    channel
-  end
-
-=begin
-
-check if bot already exists as channel
-
-  success = Quepasa.bot_duplicate?(bot_id)
-
-returns
-
-  channel # instance of Channel
-
-=end
-
+  attr_reader :client
+  
   def self.bot_duplicate?(bot_id, channel_id = nil)
-    Channel.where(area: 'Quepasa::Account').each do |channel|
+    Channel.where(area: 'Quepasa::Bot').each do |channel|
       next if !channel.options
       next if !channel.options[:bot]
       next if !channel.options[:bot][:id]
@@ -97,20 +17,8 @@ returns
     false
   end
 
-=begin
-
-get channel by bot_id
-
-  channel = Quepasa.bot_by_bot_id(bot_id)
-
-returns
-
-  true|false
-
-=end
-
-  def self.bot_by_bot_id(bot_id)
-    Channel.where(area: 'Quepasa::Account').each do |channel|
+  def self.GetChannelFromId(bot_id)
+    Channel.where(area: 'Quepasa::Bot').each do |channel|
       next if !channel.options
       next if !channel.options[:bot]
       next if !channel.options[:bot][:id]
@@ -119,51 +27,80 @@ returns
     nil
   end
 
-=begin
-
-  date = Quepasa.timestamp_to_date('1543414973285')
-
-returns
-
-  2018-11-28T14:22:53.285Z
-
-=end
-
   def self.timestamp_to_date(timestamp_str)
     Time.at(timestamp_str.to_i).utc.to_datetime
   end
 
-=begin
+  def initialize(params)
+    Rails.logger.info { '[QUEPASA] initialized' }
+    Rails.logger.info { params.inspect }
 
-  client = Quepasa.new('token')
+    @client = QuepasaApi.new(params[:api_token], params[:api_base_url])
+  end
+  
+  def CreateOrUpdateChannel(params, channel = nil)
 
-=end
+    # verify api_token
+    bot = @client.fetch_self()
 
-  def initialize(api_url, token)
-    @token = token
-    @api_url = api_url
-    @api = QuepasaApi.new(api_url, token)
+    if !channel && bot_duplicate?(bot['id'])
+      raise Exceptions::UnprocessableEntity, __('This bot already exists.')
+    end
+
+    if params[:group_id].blank?
+      raise Exceptions::UnprocessableEntity, __("The required parameter 'group_id' is missing.")
+    end
+
+    group = Group.find_by(id: params[:group_id])
+    if !group
+      raise Exceptions::UnprocessableEntity, __("The required parameter 'group_id' is invalid.")
+    end
+
+    # generate random callback token
+    callback_token = if Rails.env.test?
+      'callback_token'
+    else
+      SecureRandom.urlsafe_base64(10)
+    end
+
+    # set webhook / callback url for this bot @ telegram
+    callback_url = "#{Setting.get('http_type')}://#{Setting.get('fqdn')}/api/v1/channels_quepasa_webhook/#{callback_token}?bid=#{bot['id']}"
+    client.setWebhook(callback_url)
+
+    if !channel
+      channel = Quepasa.GetChannelFromId(bot['id'])
+      if !channel
+        channel = Channel.new
+      end
+    end
+    channel.area = 'Quepasa::Bot'
+    channel.options = {
+      adapter:   'quepasa',
+      bot:       {
+        id:     bot['id'],
+        number: bot['number'],
+      },
+      callback_token: callback_token,
+      callback_url:   callback_url,
+      api_token:    params[:api_token],
+      api_base_url: params[:api_base_url],
+      welcome:        params[:welcome],
+      goodbye:        params[:goodbye],
+    }
+    channel.group_id = group.id
+    channel.active = true
+    channel.save!
+    channel
   end
 
-=begin
-
-Fetch AND import messages for the bot
-
-  client.fetch_messages(group_id, channel)
-
-returns the latest last_seen_ts
-
-=end
-
   def fetch_messages(group_id, channel, last_seen_ts)
-
     older_import = 0
     older_import_max = 40
     new_last_seen_date = Quepasa.timestamp_to_date(last_seen_ts)
     new_last_seen_ts = last_seen_ts
     self_source_id = self.number_to_whatsapp_user(channel.options['bot']['number'])
     count = 0
-    @api.fetch(last_seen_ts).each do |message_raw|
+    @client.fetch(last_seen_ts).each do |message_raw|
       Rails.logger.debug { "quepasa processing message self_source_id=#{self_source_id} and source=#{message_raw['source']}" }
       Rails.logger.debug { message_raw.inspect }
       next if message_raw['source'] == self_source_id
@@ -206,16 +143,10 @@ returns the latest last_seen_ts
     new_last_seen_ts
   end
 
-=begin
-
-  client.send_message(chat_id, 'some message')
-
-=end
-
   def send_message(recipient, message)
     return if Rails.env.test?
 
-    @api.send_message(recipient, message)
+    @client.send_message(recipient, message)
   end
 
   def to_user(message)
@@ -389,7 +320,7 @@ returns the latest last_seen_ts
   end
 
   def from_article(article)
-    r = @api.send_message(number_to_whatsapp_user(article[:to]), article[:body])
+    r = @client.send_message(number_to_whatsapp_user(article[:to]), article[:body])
     if r['result'].present? and r['result']['source'].present?
       r['result']['source'] = self.whatsapp_user_to_number(r['result']['source'])
       r['result']['recipient'] = self.whatsapp_user_to_number(r['result']['recipient'])

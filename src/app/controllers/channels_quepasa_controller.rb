@@ -20,7 +20,7 @@ class ChannelsQuepasaController < ApplicationController
   def add
     quepasa = Quepasa.new(params)
     begin
-      channel = quepasa.create_or_update_channel(params)
+      channel = quepasa.CreateOrUpdateChannel(params)
     rescue => e
       raise Exceptions::UnprocessableEntity, e.message
     end
@@ -31,7 +31,7 @@ class ChannelsQuepasaController < ApplicationController
     channel = Channel.find_by(id: params[:id], area: 'Quepasa::Bot')
     quepasa = Quepasa.new(channel.options)
     begin
-      channel = quepasa.create_or_update_channel(params, channel)
+      channel = quepasa.CreateOrUpdateChannel(params, channel)
     rescue => e
       raise Exceptions::UnprocessableEntity, e.message
     end
@@ -59,7 +59,7 @@ class ChannelsQuepasaController < ApplicationController
   end
 
   def webhook
-    Rails.logger.info { 'QUEPASA CONTROLLER: from webhook' }
+    Rails.logger.info { '[QUEPASA] from webhook' }
     Rails.logger.info { params.inspect }
     raise Exceptions::UnprocessableEntity, 'bot id is missing' if params['bid'].blank?
 
