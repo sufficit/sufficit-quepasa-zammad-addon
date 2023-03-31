@@ -54,7 +54,7 @@ Project](https://guardianproject.info).
 ### SUFFICIT #########################
 
 ## Important to add WHATSAPP specific fields
-zammad run rake db:migrate
+zammad run rake zammad:package:migrate
 
 zammad run rake assets:precompile
 systemctl restart zammad

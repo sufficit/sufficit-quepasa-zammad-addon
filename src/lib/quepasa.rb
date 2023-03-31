@@ -264,8 +264,8 @@ class Quepasa
       wagroup = to_wagroup(message)   # cria um usuario caso a msg venha de algum grupo
       wauser  = to_wauser(message)    # cria outro usuario caso seja uma msg direta ou para o participante do grupo
 
-      wagroup = wauser if wagroup.nil?
-      ticket = to_ticket(message, wagroup, group_id, channel)
+      ticket_user = wauser if wagroup.nil?
+      ticket = to_ticket(message, ticket_user, group_id, channel)
       to_article(message, wauser, ticket, channel)
     end
 
@@ -335,7 +335,7 @@ class Quepasa
     Rails.logger.info { message.inspect }
 
     # definindo o que utilizar como endpoint de usuario
-    if !(message[:participant][:id].to_s.empty?)
+    if !(message[:participant].nil?)
       endPointID = message[:participant][:id]
       endPointTitle = message[:participant][:title]
       endPointPhone = message[:participant][:phone]
@@ -408,20 +408,14 @@ class Quepasa
     if title.length > 60
       title = "#{title[0, 60]}..."
     end
-
+       
     # find ticket or create one
-    # raise RuntimeError, 'bot id not setted' if @bid.nil?
-    if @bid.nil?
-      info = check_token()
-      @bid = info['server']['bot']['id']
-    end
-
     state_ids        = Ticket::State.where(name: %w[closed merged removed]).pluck(:id)
     possible_tickets = Ticket.where(customer_id: user.id).where.not(state_id: state_ids)
     ticket           = possible_tickets.find_each.find { |possible_ticket| possible_ticket.preferences[:channel_id] == channel.id }
 
     if ticket
-      Rails.logger.info { "[QUEPASA] append to ticket(#{ticket.id}) from message ... #{@bid}" }
+      Rails.logger.info { "[QUEPASA] append to ticket(#{ticket.id}) from message ..." }
 
       # check if title need to be updated
       if ticket.title == '-'
@@ -435,7 +429,7 @@ class Quepasa
       return ticket
     end
 
-    Rails.logger.info { "QUEPASA: creating new ticket from message ... #{@bid}" }
+    Rails.logger.info { "QUEPASA: creating new ticket from message ..." }
     ticket = Ticket.new(
       group_id:    group_id,
       title:       title,
@@ -481,7 +475,8 @@ class Quepasa
     )
 
     if !message[:text]
-      raise Exceptions::UnprocessableEntity, 'invalid quepasa message'
+      message[:text] = ''
+      #raise Exceptions::UnprocessableEntity, 'invalid quepasa message'
     end
 
     Rails.logger.info { 'QUEPASA: processando msg de texto simples ... ' }
