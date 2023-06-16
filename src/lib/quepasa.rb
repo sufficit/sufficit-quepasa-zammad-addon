@@ -28,10 +28,13 @@ class Quepasa
   end
 
   def self.GetChatIdByCustomer(customerId)
+    Rails.logger.info { "[QUEPASA]: get chat id by customer: #{customerId}" }    
+
     user = User.find(customerId)
     raise RuntimeError, "user not found for id #{customerId}" if user.nil?
 
-    return user.quepasa
+    Rails.logger.info { user.inspect }
+    return user.quepasa || user.phone || user.login
   end
 
   def self.timestamp_to_date(timestamp_str)
@@ -187,11 +190,12 @@ class Quepasa
     auth = Authorization.find_by(uid: message_user[:id], provider: 'quepasa')
 
     # create or update user
-    login = message_user[:username] || message_user[:id]
+    chat_id = message_user[:username] || message_user[:id]
     user_data = {
-      login:     login,
+      login:     chat_id,
       firstname: message_user[:first_name],
       lastname:  message_user[:last_name],
+      quepasa: chat_id
     }
     if auth
       user = User.find(auth.user_id)
@@ -208,7 +212,7 @@ class Quepasa
     # create or update authorization
     auth_data = {
       uid:      message_user[:id],
-      username: login,
+      username: chat_id,
       user_id:  user.id,
       provider: 'quepasa'
     }

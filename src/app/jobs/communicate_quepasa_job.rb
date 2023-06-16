@@ -4,9 +4,10 @@ class CommunicateQuepasaJob < ApplicationJob
     executions * 5.seconds
   }
 
-  def perform(article_id)
-    Rails.logger.info { "[QUEPASA][COMMUNICATE]: perform: #{article_id}" }
+  def perform(article_id)    
     article = Ticket::Article.find(article_id)
+    Rails.logger.info { "[QUEPASA][COMMUNICATE]: perform: #{article_id}" }
+    Rails.logger.info { article.inspect }
 
     # set retry count
     article.preferences['delivery_retry'] ||= 0
@@ -64,24 +65,28 @@ class CommunicateQuepasaJob < ApplicationJob
 
     # only private, group messages. channel messages do not have from key
     if result
+      message_id = result['message_id'] || result['result']['messageId']
+      recipient = result['chat']['id'] || result['result']['recipient']
       article.preferences['quepasa'] = {
         # V3
         source:     result['result']['source'],
-        recipient:  result['result']['recipient'],
-        messageId:  result['result']['messageId'],
+        recipient:  recipient,
+        messageId:  message_id,
 
         # V2
-        chat_id:    result['chat']['id'],
-        message_id: result['message_id']
+        chat_id:    recipient,
+        message_id: message_id
       }
+
+      # set delivery status
+      article.preferences['delivery_status_message'] = nil
+      article.preferences['delivery_status'] = 'success'
+      article.preferences['delivery_status_date'] = Time.now.utc
+
+      article.message_id = message_id
+      article.to = recipient
+
     end
-
-    # set delivery status
-    article.preferences['delivery_status_message'] = nil
-    article.preferences['delivery_status'] = 'success'
-    article.preferences['delivery_status_date'] = Time.now.utc
-    article.message_id = result['result']['messageId']
-
     article.save!
 
     Rails.logger.info { "[QUEPASA][COMMUNICATE] sended quepasa message to: '#{article.to}' (from #{article.from})" }

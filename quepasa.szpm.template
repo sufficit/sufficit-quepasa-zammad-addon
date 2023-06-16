@@ -1,12 +1,22 @@
 {
   "name": "quepasa",
-  "version": "0.4.92",
+  "version": "0.4.98",
   "vendor": "Sufficit Soluções em Tecnologia da Informação",
   "license": "AGPL-v3+",
   "url": "https://github.com/sufficit/sufficit-quepasa-zammad-addon",
   "buildhost": "",
   "builddate": "",
   "change_log": [
+    {
+      "version": "0.4.98",
+      "date": "2023/06/14 10:35",
+      "log": "using phone or login for discover chat id"
+    },
+    {
+      "version": "0.4.96",
+      "date": "2023/06/12 10:35",
+      "log": "More log information"
+    },
     {
       "version": "0.0.3",
       "date": "",

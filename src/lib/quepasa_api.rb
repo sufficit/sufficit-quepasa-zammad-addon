@@ -92,8 +92,8 @@ class QuepasaApi
         http.request(req)
     end
  
-    ret = resp.body 
-    Rails.logger.info { "[QUEPASA][API] posted response: #{ret}" } 
+    Rails.logger.debug { resp.inspect }
+    ret = resp.body
     ret
   end
 
