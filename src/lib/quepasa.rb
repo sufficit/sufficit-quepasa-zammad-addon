@@ -264,7 +264,7 @@ class Quepasa
 
     # cria um transação para garantir que todo o processo seja coerente no final
     # se não conhece database transactions, pare por aqui e vai estudar
-    Transaction.execute(reset_user_id: true) do
+    Transaction.execute(reset_user_id: true, context: 'quepasa') do
       wagroup = to_wagroup(message)   # cria um usuario caso a msg venha de algum grupo
       wauser  = to_wauser(message)    # cria outro usuario caso seja uma msg direta ou para o participante do grupo
 
